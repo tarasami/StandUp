@@ -187,6 +187,45 @@ b.triggerReminder();
 b.takeBreak(t);
 fx = b.pause(t, 60);
 check('tạm dừng lúc đang nghỉ → dọn cửa sổ nhắc', has(fx, 'closeReminder') && b.phase === 'paused');
+// Hồi quy: "Thử nhắc nhở" từng xoá pauseUntil, nên thử nhắc lúc đang tạm dừng
+// là mất luôn trạng thái tạm dừng — app âm thầm chạy lại sau lưng người dùng.
+b = fresh();
+b.pause(t, null);
+b.triggerReminder();
+check('thử nhắc lúc đang tạm dừng: cửa sổ nhắc vẫn hiện', b.phase === 'reminding');
+b.skip(t);
+check('bỏ qua lời nhắc thử → QUAY LẠI tạm dừng, không tự chạy tiếp', b.phase === 'paused');
+run(b, 5 * 60);
+check('vẫn nằm im ở tạm dừng vô thời hạn sau 5 phút', b.phase === 'paused');
+b = fresh();
+b.pause(t, 60);
+b.triggerReminder();
+b.skip(t);
+check('tạm dừng có hẹn giờ cũng được trả lại nguyên vẹn',
+  b.phase === 'paused' && b.status(t, 0).remainingSecs > 59 * 60);
+run(b, 60 * 60 + 1);
+check('hết hạn tạm dừng thì tự chạy lại bình thường', b.phase === 'working');
+// Ngược lại: hưởng ứng lời nhắc thử là chủ động, tạm dừng coi như bỏ.
+b = fresh();
+b.pause(t, null);
+b.triggerReminder();
+b.takeBreak(t);
+check('bấm Nghỉ ngay ở lời nhắc thử → nghỉ thật, bỏ tạm dừng', b.phase === 'breaking');
+run(b, 5 * 60 + 1);
+check('nghỉ xong về làm việc, KHÔNG quay lại tạm dừng', b.phase === 'working');
+b = fresh();
+b.pause(t, null);
+b.triggerReminder();
+b.snooze(t);
+check('bấm Hoãn ở lời nhắc thử → hẹn lại 5 phút, bỏ tạm dừng', b.phase === 'working');
+run(b, 5 * 60 + 1);
+check('hoãn xong nhắc lại đúng hẹn', b.phase === 'reminding');
+// Đường đi bình thường (không tạm dừng) không được đổi hành vi.
+b = fresh();
+b.triggerReminder();
+b.skip(t);
+check('không tạm dừng: bỏ qua vẫn bắt đầu chu kỳ mới như cũ',
+  b.phase === 'working' && b.status(t, 0).remainingSecs === 45 * 60);
 
 console.log('7. Đổi cài đặt giữa chừng');
 b = fresh();

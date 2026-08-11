@@ -210,10 +210,14 @@ class Engine {
 
   // ---- Hành động từ người dùng ----
 
+  // Ba hàm dưới đây đều xoá pauseUntil: chúng ứng với việc người dùng CHỦ ĐỘNG
+  // hưởng ứng lời nhắc (nghỉ / hoãn), nên trạng thái tạm dừng cũ coi như bỏ.
+  // Riêng skip() thì không — xem giải thích ở đó.
   takeBreak(now) {
     if (this.phase !== PHASE.REMINDING) return [];
     this.phase = PHASE.BREAKING;
     this.deadline = now + this.breakMs();
+    this.pauseUntil = undefined;
     return []; // cửa sổ nhắc giữ nguyên, tự chuyển sang giao diện đếm giờ nghỉ
   }
 
@@ -221,11 +225,20 @@ class Engine {
     if (this.phase !== PHASE.REMINDING) return [];
     this.phase = PHASE.WORKING;
     this.deadline = now + SNOOZE_MINS * 60_000;
+    this.pauseUntil = undefined;
     return [{ type: 'closeReminder' }];
   }
 
   skip(now) {
     if (this.phase !== PHASE.REMINDING && this.phase !== PHASE.BREAKING) return [];
+    // "Bỏ qua" nghĩa là dẹp lời nhắc đi và không đổi gì khác. Nếu lời nhắc này
+    // là bản THỬ bắn ra trong lúc đang tạm dừng (pauseUntil vẫn còn nguyên vì
+    // triggerReminder không đụng tới), thì phải trả app về đúng trạng thái tạm
+    // dừng cũ — chứ không âm thầm cho chạy lại sau lưng người dùng.
+    if (this.pauseUntil !== undefined) {
+      this.phase = PHASE.PAUSED;
+      return [{ type: 'closeReminder' }];
+    }
     this.newCycle(now);
     return [{ type: 'closeReminder' }];
   }
@@ -237,9 +250,10 @@ class Engine {
     return [{ type: 'openReminder' }];
   }
 
+  // "Thử nhắc nhở" là một phép THỬ, không được phá trạng thái đang có. Giữ
+  // nguyên pauseUntil để skip() biết đường trả app về lại trạng thái tạm dừng.
   triggerReminder() {
     this.phase = PHASE.REMINDING;
-    this.pauseUntil = undefined;
     return this.remindEffects();
   }
 

@@ -5,7 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/engine.test.js",
+    "test": "node test/engine.test.js && node test/main-utils.test.js",
     "icon": "node tools/make-icon.js build/icon.ico",
     "dist": "electron-builder --win --publish never"
   },

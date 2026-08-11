@@ -7,6 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execFile, execFileSync } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
+const { parseRegDword, parseSettingsJson, mainWindowHeight } = require('./main-utils');
 
 const AUMID = 'vn.standup.app';
 
@@ -27,20 +28,24 @@ function settingsFile() {
 
 function loadSettings() {
   try {
-    // Cắt BOM (U+FEFF) trước khi parse: file settings sửa tay bằng trình soạn
-    // thảo Windows rất dễ dính BOM ở đầu, mà JSON.parse thì ném lỗi vì nó —
-    // hậu quả là mất sạch cài đặt và bị bắt onboarding lại, không một lời báo.
-    const raw = fs.readFileSync(settingsFile(), 'utf8').replace(/^\uFEFF/, '');
-    return clampSettings(JSON.parse(raw));
-  } catch {
-    return { ...DEFAULT_SETTINGS };
-  }
+    const parsed = parseSettingsJson(fs.readFileSync(settingsFile(), 'utf8'));
+    if (parsed) return clampSettings(parsed);
+  } catch { /* chưa có file — lần chạy đầu tiên */ }
+  // File hỏng cũng rơi về đây: thà chạy với mặc định còn hơn không chạy.
+  return { ...DEFAULT_SETTINGS };
 }
 
 function saveSettings(s) {
   try {
-    fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-    fs.writeFileSync(settingsFile(), JSON.stringify(s, null, 2));
+    const file = settingsFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    // Ghi ra file tạm rồi đổi tên: rename trong cùng thư mục là thao tác nguyên
+    // tử, nên crash hay mất điện giữa chừng cũng không để lại JSON cụt. Ghi đè
+    // thẳng thì một file cụt sẽ khiến loadSettings lặng lẽ quay về mặc định —
+    // mất sạch cài đặt và bắt người dùng onboarding lại từ đầu.
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
+    fs.renameSync(tmp, file);
   } catch (err) {
     console.error('Không lưu được cài đặt:', err);
   }
@@ -106,8 +111,7 @@ function regDwordIsZero(keyPath, valueName) {
   return new Promise((resolve) => {
     execFile('reg', ['query', keyPath, '/v', valueName], { windowsHide: true }, (err, stdout) => {
       if (err) return resolve(false);
-      const m = /REG_DWORD\s+0x([0-9a-f]+)/i.exec(stdout);
-      resolve(!!m && parseInt(m[1], 16) === 0);
+      resolve(parseRegDword(stdout) === 0);
     });
   });
 }
@@ -212,15 +216,12 @@ function createWindows() {
   });
 }
 
-// Effect từ engine (và cả cú bấm vào toast) có thể tới đúng lúc app đang thoát,
-// khi cửa sổ nhắc đã bị huỷ — chạm vào nó lúc đó là làm chết main process.
-// Mọi thao tác với cửa sổ này phải đi qua hai hàm dưới đây.
 function fitMainToWarning() {
   if (!mainWin || mainWin.isDestroyed()) return;
-  // Không vượt quá vùng làm việc: màn hình 768px không chứa nổi 812px, thà để
-  // trang tự cuộn còn hơn đẩy nửa cửa sổ xuống dưới taskbar.
-  const maxH = screen.getPrimaryDisplay().workArea.height;
-  const want = Math.min(toastBlocked ? MAIN_HEIGHT_WARN : MAIN_HEIGHT, maxH);
+  // Đo theo màn hình đang chứa cửa sổ, không phải màn hình chính: máy nhiều màn
+  // hình rất hay có một cái thấp hơn hẳn.
+  const maxH = screen.getDisplayMatching(mainWin.getBounds()).workArea.height;
+  const want = mainWindowHeight(toastBlocked, maxH, MAIN_HEIGHT, MAIN_HEIGHT_WARN);
   const [w, h] = mainWin.getSize();
   if (h === want) return;
   // Trên Windows, setSize bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
@@ -229,14 +230,20 @@ function fitMainToWarning() {
   mainWin.setResizable(false);
 }
 
+// Effect từ engine (và cả cú bấm vào toast) có thể tới đúng lúc app đang thoát,
+// khi cửa sổ nhắc đã bị huỷ — chạm vào nó lúc đó là làm chết main process.
+// Mọi thao tác với cửa sổ nhắc phải đi qua hai hàm dưới đây.
 function reminderAlive() {
   return reminderWin && !reminderWin.isDestroyed();
 }
 
 function showReminder() {
   if (!reminderAlive()) return;
+  // Bung ra ở màn hình đang có con trỏ chuột — tức màn hình người dùng đang làm
+  // việc. Dùng màn hình chính thì trên máy nhiều màn hình lời nhắc sẽ hiện ở
+  // một chỗ khác hẳn nơi người dùng đang nhìn, coi như không nhắc.
   // workArea đã trừ sẵn taskbar → góc dưới-phải, cách mép 16px.
-  const wa = screen.getPrimaryDisplay().workArea;
+  const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const b = reminderWin.getBounds();
   reminderWin.setPosition(wa.x + wa.width - b.width - 16, wa.y + wa.height - b.height - 16);
   // showInactive: hiện cửa sổ nhưng KHÔNG cướp focus — không phá gõ phím.
@@ -536,6 +543,12 @@ if (!app.requestSingleInstanceLock()) {
   app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
   app.on('second-instance', showMain);
+
+  // Hai handler 'close' của cửa sổ chặn việc đóng để app sống tiếp trong tray;
+  // cờ isQuitting là lối thoát duy nhất. Trước đây chỉ menu Thoát mới hạ cờ,
+  // nên mọi đường thoát khác — Windows logoff, shutdown, app.quit() từ chỗ
+  // khác — đều bị app giữ lại cho tới khi hệ điều hành cưỡng bức tắt.
+  app.on('before-quit', () => { app.isQuitting = true; });
 
   app.whenReady().then(() => {
     // Windows cần AppUserModelID để toast hiển thị; khi chưa đóng gói,
