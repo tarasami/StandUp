@@ -143,6 +143,20 @@ run(e, 5 * 60 + 1);
 check('hoãn nhiều lần liên tiếp vẫn hoạt động', e.phase === 'reminding');
 fx = e.skip(t);
 check('bỏ qua → chu kỳ mới đầy đủ', e.phase === 'working' && e.status(t, 0).remainingSecs === 45 * 60);
+// Nút "Làm việc tiếp" ở cửa sổ nghỉ cũng gọi skip() — nhánh này trước giờ chưa
+// có test, mà skip() lại vừa được thêm nhánh xử lý tạm dừng.
+b = fresh();
+b.triggerReminder();
+b.takeBreak(t);
+run(b, 30);
+fx = b.skip(t);
+check('bỏ qua khi ĐANG NGHỈ → cắt giờ nghỉ, vào chu kỳ mới',
+  b.phase === 'working' && b.status(t, 0).remainingSecs === 45 * 60 && has(fx, 'closeReminder'));
+b = fresh();
+b.breakNow(t);
+run(b, 30);
+b.skip(t);
+check('nghỉ từ menu tray rồi bỏ qua cũng về chu kỳ mới sạch', b.phase === 'working');
 
 console.log('5b. Hành động sai ngữ cảnh không làm hỏng trạng thái');
 b = fresh();
