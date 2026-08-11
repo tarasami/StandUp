@@ -1,0 +1,59 @@
+{
+  "name": "standup",
+  "version": "1.0.0",
+  "description": "StandUp — nhắc nhở vận động cho người làm việc máy tính",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/engine.test.js",
+    "icon": "node tools/make-icon.js build/icon.ico",
+    "dist": "electron-builder --win --publish never"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "vn.standup.app",
+    "productName": "StandUp",
+    "copyright": "StandUp",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "StandUp-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "StandUp",
+      "installerLanguages": ["en_US"],
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

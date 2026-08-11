@@ -1,0 +1,218 @@
+:root {
+  color-scheme: dark;
+  --bg: #12141a;
+  --card: #1b1e27;
+  --border: #2a2e3b;
+  --text: #e8eaf0;
+  --muted: #9aa1b2;
+  --accent: #10a37f;
+  --accent-hover: #13b98f;
+  --danger: #e05b5b;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ============ Cửa sổ chính ============ */
+
+body.main { padding: 20px; }
+
+header h1 { font-size: 22px; }
+header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 14px;
+}
+
+.status { text-align: center; }
+.phase { font-size: 15px; font-weight: 600; }
+.countdown {
+  font-size: 52px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+  margin: 4px 0;
+  color: var(--accent);
+}
+body[data-phase='reminding'] .countdown { color: #f0b429; }
+body[data-phase='paused'] .countdown,
+body[data-phase='idle'] .countdown { color: var(--muted); }
+.hint { color: var(--muted); font-size: 12px; }
+
+/* Cảnh báo Windows đang nuốt toast. Màu hổ phách chứ không đỏ: app vẫn chạy,
+   đây là việc cần người dùng gạt lại chứ không phải sự cố hỏng hóc. */
+.warn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: rgba(240, 180, 41, 0.09);
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  border-radius: 10px;
+  padding: 11px 13px;
+  margin-top: 14px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.warn.hidden { display: none; }
+.warn strong { display: block; color: #f0b429; font-size: 12.5px; margin-bottom: 3px; }
+.warn .btn { flex: none; padding: 7px 11px; font-size: 12px; }
+
+.controls { display: flex; gap: 10px; margin-top: 14px; }
+.controls .btn { flex: 1; }
+
+h2 { font-size: 14px; margin-bottom: 10px; }
+
+label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+input[type='number'] {
+  width: 80px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+}
+input[type='number']:focus { outline: 1px solid var(--accent); }
+
+.btn {
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.btn.primary:hover { background: var(--accent-hover); }
+.btn.block { width: 100%; }
+
+.save-msg { color: var(--accent); font-size: 12px; text-align: center; min-height: 16px; margin-top: 6px; }
+
+footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 14px; }
+
+/* Checkbox trong cài đặt & onboarding */
+label.check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  color: var(--text);
+}
+label.check input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+label.check em { color: var(--muted); font-style: normal; font-size: 11.5px; }
+
+/* ============ Onboarding ============ */
+
+body.onboarding { padding: 22px 24px; }
+
+.welcome { text-align: center; margin-bottom: 4px; }
+.welcome .logo { font-size: 42px; line-height: 1; }
+.welcome h1 { font-size: 21px; margin-top: 6px; }
+.welcome .sub { color: var(--muted); font-size: 13px; margin-top: 8px; line-height: 1.6; }
+
+.presets { display: flex; gap: 8px; margin-bottom: 12px; }
+.preset {
+  flex: 1;
+  padding: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.preset:hover { border-color: var(--muted); }
+.preset.selected {
+  border-color: var(--accent);
+  background: rgba(16, 163, 127, 0.14);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+label.custom { justify-content: flex-start; gap: 8px; margin-bottom: 6px; }
+label.custom input { width: 72px; }
+.advice { color: var(--muted); font-size: 11.5px; }
+
+.checks { display: flex; flex-direction: column; gap: 12px; }
+
+.tip {
+  background: rgba(16, 163, 127, 0.09);
+  border: 1px solid rgba(16, 163, 127, 0.28);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.tip strong { color: var(--text); }
+
+.btn.big { padding: 13px; font-size: 15px; margin-top: 16px; }
+.btn:disabled { opacity: 0.55; cursor: default; }
+
+/* ============ Cửa sổ nhắc nhở ============ */
+
+body.reminder {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  -webkit-app-region: drag; /* kéo được cửa sổ không viền */
+}
+body.reminder .btn,
+body.reminder input { -webkit-app-region: no-drag; }
+
+.pane { text-align: center; }
+.pane.hidden { display: none; }
+
+.big { font-size: 19px; font-weight: 700; }
+.small { color: var(--muted); font-size: 13px; margin: 8px 0 14px; }
+
+.row { display: flex; gap: 8px; justify-content: center; }
+
+.break-countdown {
+  font-size: 44px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  margin: 6px 0 14px;
+}

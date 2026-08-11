@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>Chào mừng đến với StandUp</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="onboarding">
+  <header class="welcome">
+    <div class="logo">🧍</div>
+    <h1>Chào mừng đến với StandUp</h1>
+    <p class="sub">Mình sẽ nhắc bạn đứng dậy vận động khi ngồi quá lâu.<br />Chỉ cần chọn một con số là xong.</p>
+  </header>
+
+  <section class="card">
+    <h2>Nhắc mình sau mỗi…</h2>
+    <div class="presets">
+      <button class="preset" data-mins="30">30 phút</button>
+      <button class="preset selected" data-mins="45">45 phút</button>
+      <button class="preset" data-mins="60">60 phút</button>
+    </div>
+    <label class="custom">Hoặc tự chọn
+      <input id="in-interval" type="number" min="5" max="240" value="45" />
+      <span>phút</span>
+    </label>
+    <p class="advice">Chuyên gia khuyến nghị đứng dậy mỗi 30–60 phút.</p>
+  </section>
+
+  <section class="card checks">
+    <label class="check">
+      <input id="in-autostart" type="checkbox" checked />
+      <span>Khởi động cùng Windows <em id="autostart-note"></em></span>
+    </label>
+    <label class="check">
+      <input id="in-sound" type="checkbox" checked />
+      <span>Phát âm báo nhẹ khi nhắc</span>
+    </label>
+  </section>
+
+  <section class="tip">
+    💡 StandUp chạy ẩn trong <strong>khay hệ thống</strong> (góc phải thanh tác vụ).
+    Windows thường giấu icon mới — bấm mũi tên <strong>^</strong> rồi kéo icon StandUp ra
+    ngoài để luôn nhìn thấy thời gian còn lại.
+  </section>
+
+  <button id="btn-start" class="btn primary block big">Bắt đầu</button>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

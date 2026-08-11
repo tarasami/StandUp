@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>StandUp</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="main">
+  <header>
+    <h1>🧍 StandUp</h1>
+    <p class="sub">Nhắc bạn đứng dậy vận động khi ngồi quá lâu</p>
+  </header>
+
+  <section id="toast-warn" class="warn hidden">
+    <div>
+      <strong>Windows đang chặn thông báo của StandUp</strong>
+      <span id="warn-detail"></span>
+    </div>
+    <button id="btn-open-notif" class="btn">Mở cài đặt</button>
+  </section>
+
+  <section class="card status">
+    <div id="phase-label" class="phase">Đang làm việc</div>
+    <div id="countdown" class="countdown">--:--</div>
+    <div id="phase-hint" class="hint">đến lần nhắc tiếp theo</div>
+  </section>
+
+  <section class="controls">
+    <button id="btn-test" class="btn">🔔 Thử nhắc ngay</button>
+    <button id="btn-pause" class="btn">⏸ Tạm dừng</button>
+  </section>
+
+  <section class="card">
+    <h2>⚙️ Cài đặt</h2>
+    <label>Nhắc sau mỗi (phút)
+      <input id="in-interval" type="number" min="5" max="240" />
+    </label>
+    <label>Thời gian nghỉ (phút)
+      <input id="in-break" type="number" min="1" max="60" />
+    </label>
+    <label>Coi là rời máy sau (phút)
+      <input id="in-idle" type="number" min="1" max="60" />
+    </label>
+    <label class="check">
+      <input id="in-sound" type="checkbox" />
+      <span>Phát âm báo nhẹ khi nhắc</span>
+    </label>
+    <label class="check">
+      <input id="in-autostart" type="checkbox" />
+      <span>Khởi động cùng Windows <em id="autostart-note"></em></span>
+    </label>
+    <button id="btn-save" class="btn primary block">Lưu cài đặt</button>
+    <div id="save-msg" class="save-msg"></div>
+  </section>
+
+  <footer>Đóng cửa sổ này, app vẫn chạy trong khay hệ thống</footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

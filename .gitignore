@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+*.log
+
+# Thư mục tạm phải trỏ sang ổ D khi build/cài (ổ C hết chỗ)
+.build-tmp/
+.install-tmp/

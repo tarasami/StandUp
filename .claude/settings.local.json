@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($d = Get-Command dotnet -ErrorAction SilentlyContinue; if \\($d\\) { \"dotnet : $\\(dotnet --version\\)\"; \"sdks:\"; dotnet --list-sdks } else { \"dotnet : MISSING\" }; $wg = Get-Command winget -ErrorAction SilentlyContinue; if \\($wg\\) { \"winget : available\" } else { \"winget : MISSING\" })",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $bmp = New-Object System.Drawing.Bitmap 256,256; $g = [System.Drawing.Graphics]::FromImage\\($bmp\\); $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias; $g.Clear\\([System.Drawing.Color]::Transparent\\); $bg = New-Object System.Drawing.SolidBrush \\([System.Drawing.Color]::FromArgb\\(255,16,163,127\\)\\); $g.FillEllipse\\($bg, 4, 4, 248, 248\\); $w = [System.Drawing.Brushes]::White; $g.FillEllipse\\($w, 106, 42, 44, 44\\); $g.FillRectangle\\($w, 116, 94, 24, 74\\); $g.FillRectangle\\($w, 78, 100, 100, 16\\); $g.FillRectangle\\($w, 116, 168, 10, 50\\); $g.FillRectangle\\($w, 130, 168, 10, 50\\); $g.Dispose\\(\\); New-Item -ItemType Directory -Force -Path D:\\\\Projects\\\\StandUp\\\\assets | Out-Null; $bmp.Save\\(\"D:\\\\Projects\\\\StandUp\\\\assets\\\\icon.png\", [System.Drawing.Imaging.ImageFormat]::Png\\); $bmp.Dispose\\(\\); \"icon: $\\(\\(Get-Item D:\\\\Projects\\\\StandUp\\\\assets\\\\icon.png\\).Length\\) bytes\")",
+      "PowerShell(node D:\\\\Projects\\\\StandUp\\\\test\\\\engine.test.js)",
+      "Bash(node test/engine.test.js)",
+      "Bash(sort -u -t: -k3)"
+    ]
+  }
+}

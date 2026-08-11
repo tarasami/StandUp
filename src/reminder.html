@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>StandUp — Nhắc nhở</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="reminder">
+  <div id="view-remind" class="pane">
+    <div id="remind-title" class="big">Đến giờ vận động rồi! 🚶</div>
+    <p id="remind-text" class="small">Bạn đã ngồi liên tục 45 phút. Đứng dậy đi lại một chút nhé.</p>
+    <div class="row">
+      <button id="btn-break" class="btn primary">Nghỉ ngay</button>
+      <button id="btn-snooze" class="btn">Hoãn 5'</button>
+      <button id="btn-skip" class="btn">Bỏ qua</button>
+    </div>
+  </div>
+
+  <div id="view-break" class="pane hidden">
+    <div class="big">🧘 Đang nghỉ…</div>
+    <div id="break-countdown" class="break-countdown">05:00</div>
+    <div class="row">
+      <button id="btn-endbreak" class="btn">Làm việc tiếp</button>
+    </div>
+  </div>
+
+  <script src="reminder.js"></script>
+</body>
+</html>
