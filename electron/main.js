@@ -247,7 +247,11 @@ function showReminder() {
   const b = reminderWin.getBounds();
   reminderWin.setPosition(wa.x + wa.width - b.width - 16, wa.y + wa.height - b.height - 16);
   // showInactive: hiện cửa sổ nhưng KHÔNG cướp focus — không phá gõ phím.
+  // Nhưng showInactive chỉ đặt cửa sổ vào ĐÚNG CHỖ CŨ trong nhóm always-on-top,
+  // nên vẫn có thể nằm dưới một cửa sổ always-on-top khác (đã đo: hạng 1, dưới
+  // thanh taskbar). moveTop() nâng hẳn lên đỉnh nhóm mà vẫn không cướp focus.
   reminderWin.showInactive();
+  reminderWin.moveTop();
 }
 
 // Lần chạy đầu: một màn hình duy nhất, chọn khoảng nhắc rồi bắt đầu.
