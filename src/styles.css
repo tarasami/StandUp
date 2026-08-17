@@ -24,8 +24,33 @@ body {
 
 body.main { padding: 20px; }
 
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
 header h1 { font-size: 22px; }
 header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+/* Nút ⚙ ở góc header: bấm để xổ phần cài đặt ra/vào. */
+.gear {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.gear:hover { border-color: var(--muted); }
+.gear.active { border-color: var(--accent); color: var(--accent); }
+
+/* Ẩn phần tử (phần cài đặt lúc chưa mở, dải cảnh báo lúc không có sự cố). */
+.hidden { display: none; }
 
 .card {
   background: var(--card);

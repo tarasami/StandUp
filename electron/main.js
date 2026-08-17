@@ -105,6 +105,10 @@ const TOAST_SWITCHES = {
 // null = không bị chặn. 'system' = tắt toàn máy, 'app' = chỉ tắt riêng StandUp.
 let toastBlocked = null;
 
+// Người dùng đã bấm ⚙ để xổ phần cài đặt ra chưa. Renderer là nơi quyết định
+// (bấm nút), báo về đây để cửa sổ co/giãn cho vừa — xem fitMain().
+let settingsOpen = false;
+
 // REG_DWORD 0 nghĩa là TẮT. Khoá không tồn tại nghĩa là chưa ai đụng tới, tức
 // đang BẬT theo mặc định — nên `reg query` lỗi là chuyện bình thường, không log.
 function regDwordIsZero(keyPath, valueName) {
@@ -131,7 +135,7 @@ async function refreshToastBlocked() {
   if (next === toastBlocked) return;
   toastBlocked = next;
   debugLog(`toast bi chan = ${next ?? 'khong'}`);
-  fitMainToWarning();
+  fitMain();
   broadcast();
 }
 
@@ -150,17 +154,21 @@ function applyAutoStart(enabled) {
 
 // ---- Cửa sổ ----
 
-// Chiều cao cửa sổ chính cắt vừa khít nội dung: dư nhiều thì thừa khoảng trống,
-// thiếu thì nút "Lưu cài đặt" và footer bị đẩy khuất, sinh thanh cuộn. Đo thật
-// bằng DevTools (viền cửa sổ Windows chiếm 39px): nội dung thường cao 697px →
-// cần 750; khi có dải cảnh báo "Windows chặn thông báo" cao 830px → cần 880.
-const MAIN_HEIGHT = 750;
-const MAIN_HEIGHT_WARN = 880;
+// Cửa sổ chính co/giãn theo hai trục: cài đặt đóng (chỉ trạng thái + nút) hay mở
+// (bấm ⚙ xổ cài đặt ra), và có dải cảnh báo "Windows chặn thông báo" hay không.
+// Bốn chiều cao đo thật bằng DevTools (viền cửa sổ Windows chiếm 39px). Cắt vừa
+// khít nội dung: dư thì thừa khoảng trống, thiếu thì nút bị khuất + sinh cuộn.
+const HEIGHTS = {
+  compact: 384,      // đóng, không cảnh báo — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
+  compactWarn: 520,  // đóng, có cảnh báo — nội dung 464px
+  full: 750,         // mở cài đặt, không cảnh báo — nội dung 697px
+  fullWarn: 880,     // mở cài đặt, có cảnh báo — nội dung 812px
+};
 
 function createWindows() {
   mainWin = new BrowserWindow({
     width: 420,
-    height: MAIN_HEIGHT,
+    height: HEIGHTS.compact, // mở ra ở dạng gọn; xổ cài đặt thì tự cao lên
     resizable: false,
     autoHideMenuBar: true,
     backgroundColor: '#12141a',
@@ -217,12 +225,12 @@ function createWindows() {
   });
 }
 
-function fitMainToWarning() {
+function fitMain() {
   if (!mainWin || mainWin.isDestroyed()) return;
   // Đo theo màn hình đang chứa cửa sổ, không phải màn hình chính: máy nhiều màn
   // hình rất hay có một cái thấp hơn hẳn.
   const maxH = screen.getDisplayMatching(mainWin.getBounds()).workArea.height;
-  const want = mainWindowHeight(toastBlocked, maxH, MAIN_HEIGHT, MAIN_HEIGHT_WARN);
+  const want = mainWindowHeight(settingsOpen, toastBlocked, maxH, HEIGHTS);
   const [w, h] = mainWin.getSize();
   if (h === want) return;
   // Trên Windows, setSize bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
@@ -534,6 +542,11 @@ function wireIpc() {
       resume: () => engine.resume(now),
     };
     if (actions[name]) act(actions[name]);
+  });
+  // Người dùng bấm ⚙ xổ/thu phần cài đặt → co giãn cửa sổ cho vừa.
+  ipcMain.on('toggle-settings', (_ev, open) => {
+    settingsOpen = !!open;
+    fitMain();
   });
 }
 

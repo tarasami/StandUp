@@ -8,8 +8,11 @@
 </head>
 <body class="main">
   <header>
-    <h1>🧍 StandUp</h1>
-    <p class="sub">Nhắc bạn đứng dậy vận động khi ngồi quá lâu</p>
+    <div class="header-text">
+      <h1>🧍 StandUp</h1>
+      <p class="sub">Nhắc bạn đứng dậy vận động khi ngồi quá lâu</p>
+    </div>
+    <button id="btn-settings" class="gear" aria-label="Cài đặt" title="Cài đặt">⚙</button>
   </header>
 
   <section id="toast-warn" class="warn hidden">
@@ -31,7 +34,7 @@
     <button id="btn-pause" class="btn">⏸ Tạm dừng</button>
   </section>
 
-  <section class="card">
+  <section id="settings-panel" class="card hidden">
     <h2>⚙️ Cài đặt</h2>
     <label>Nhắc sau mỗi (phút)
       <input id="in-interval" type="number" min="5" max="240" />

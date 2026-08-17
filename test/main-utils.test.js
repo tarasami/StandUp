@@ -48,14 +48,17 @@ check('mảng → null', parseSettingsJson('[1,2,3]') === null);
 check('số trần → null', parseSettingsJson('42') === null);
 check('không ném lỗi với undefined', parseSettingsJson(undefined) === null);
 
-console.log('3. mainWindowHeight — nới cửa sổ khi có dải cảnh báo');
-check('không bị chặn → chiều cao thường', mainWindowHeight(null, 1080, 710, 812) === 710);
-check('bị chặn → nới ra cho vừa dải cảnh báo', mainWindowHeight('app', 1080, 710, 812) === 812);
-check('lý do "system" cũng nới', mainWindowHeight('system', 1080, 710, 812) === 812);
-// Màn hình 768px (workArea ~728): 812px sẽ thò xuống dưới taskbar.
-check('màn hình thấp → kẹp về vùng làm việc', mainWindowHeight('app', 728, 710, 812) === 728);
-check('màn hình rất thấp → kẹp cả chiều cao thường',
-  mainWindowHeight(null, 600, 710, 812) === 600);
+console.log('3. mainWindowHeight — 4 chiều cao theo đóng/mở cài đặt × có/không cảnh báo');
+// Giá trị đại diện; test chỉ kiểm hàm CHỌN đúng ô, không phải số đo thật.
+const H = { compact: 384, compactWarn: 516, full: 750, fullWarn: 880 };
+check('đóng cài đặt, không cảnh báo → compact', mainWindowHeight(false, null, 1080, H) === 384);
+check('MỞ cài đặt, không cảnh báo → full', mainWindowHeight(true, null, 1080, H) === 750);
+check('đóng cài đặt, CÓ cảnh báo → compactWarn', mainWindowHeight(false, 'app', 1080, H) === 516);
+check('MỞ cài đặt, CÓ cảnh báo → fullWarn', mainWindowHeight(true, 'app', 1080, H) === 880);
+check('lý do "system" cũng tính là bị chặn', mainWindowHeight(false, 'system', 1080, H) === 516);
+// Kẹp về vùng làm việc: màn hình thấp không chứa nổi chiều cao mong muốn.
+check('màn hình thấp → kẹp full về workArea', mainWindowHeight(true, null, 700, H) === 700);
+check('màn hình rất thấp → kẹp cả compact', mainWindowHeight(false, null, 300, H) === 300);
 
 console.log('4. reminderXY — đặt cửa sổ nhắc theo vị trí đã chọn');
 const WIN = { width: 380, height: 250 };

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('standup', {
   openNotificationSettings: () => ipcRenderer.invoke('open-notification-settings'),
   completeOnboarding: (s) => ipcRenderer.invoke('complete-onboarding', s),
   action: (name) => ipcRenderer.send('action', name),
+  toggleSettings: (open) => ipcRenderer.send('toggle-settings', open),
   onStatus: (cb) => ipcRenderer.on('status', (_ev, st) => cb(st)),
   onSound: (cb) => ipcRenderer.on('sound', (_ev, kind) => cb(kind)),
 });

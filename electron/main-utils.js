@@ -32,12 +32,16 @@ function parseSettingsJson(text) {
   }
 }
 
-// Chiều cao cửa sổ chính. Dải cảnh báo "Windows đang chặn thông báo" chèn thêm
-// chỗ nên phải nới cửa sổ ra, nhưng không được vượt quá vùng làm việc: màn hình
-// 768px không chứa nổi 812px, thà để trang tự cuộn còn hơn đẩy nửa cửa sổ xuống
-// dưới taskbar.
-function mainWindowHeight(blocked, maxHeight, base, warn) {
-  return Math.min(blocked ? warn : base, maxHeight);
+// Chiều cao cửa sổ chính theo hai trạng thái độc lập: cài đặt đang MỞ hay đóng
+// (bấm nút ⚙ để xổ ra), và có dải cảnh báo "Windows chặn thông báo" hay không.
+// Bốn chiều cao (h.compact / h.compactWarn / h.full / h.fullWarn) đo thật bằng
+// DevTools. Kẹp về vùng làm việc để cửa sổ không thò xuống dưới taskbar; vượt
+// thì để nội dung tự cuộn còn hơn mất nút.
+function mainWindowHeight(settingsOpen, blocked, maxHeight, h) {
+  const want = settingsOpen
+    ? (blocked ? h.fullWarn : h.full)
+    : (blocked ? h.compactWarn : h.compact);
+  return Math.min(want, maxHeight);
 }
 
 // Khoảng cách từ mép màn hình khi đặt cửa sổ nhắc ở góc.

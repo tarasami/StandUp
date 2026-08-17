@@ -117,6 +117,17 @@ $('btn-save').addEventListener('click', async () => {
   setTimeout(() => ($('save-msg').textContent = ''), 2000);
 });
 
+// Nút ⚙: xổ phần cài đặt ra/vào. Báo main để cửa sổ co/giãn cho vừa nội dung —
+// main giữ chiều cao chuẩn cho từng trạng thái, không đo lại pixel ở đây.
+let settingsOpen = false;
+function toggleSettings() {
+  settingsOpen = !settingsOpen;
+  $('settings-panel').classList.toggle('hidden', !settingsOpen);
+  $('btn-settings').classList.toggle('active', settingsOpen);
+  api.toggleSettings(settingsOpen);
+}
+$('btn-settings').addEventListener('click', toggleSettings);
+
 $('btn-open-notif').addEventListener('click', () => api.openNotificationSettings());
 $('btn-test').addEventListener('click', () => api.action('test'));
 $('btn-pause').addEventListener('click', () => api.action(paused ? 'resume' : 'pauseIndef'));
