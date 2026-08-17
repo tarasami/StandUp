@@ -209,9 +209,12 @@ class Engine {
       title: m.title,
       body: m.body.replace('{mins}', String(this.settings.intervalMins)),
     };
+    // KHÔNG bắn toast Windows lúc nhắc: cửa sổ nhắc (openReminder) đã hiện đúng
+    // câu này rồi, thêm toast là báo trùng hai lần cùng lúc. Cửa sổ nhắc còn hơn
+    // toast ở chỗ có nút hành động và không thể bị Windows tắt ngầm. Toast chỉ
+    // giữ cho lúc HẾT GIỜ NGHỈ (không có cửa sổ nào khác báo) và onboarding.
     return [
       { type: 'openReminder' },
-      { type: 'notify', title: this.message.title, body: this.message.body },
       ...(this.settings.sound ? [{ type: 'sound', kind: 'remind' }] : []),
     ];
   }

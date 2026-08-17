@@ -35,7 +35,7 @@ check('44 phút: chưa nhắc', e.phase === 'working' && fx.length === 0);
 fx = run(e, 61);
 check('sau 45 phút: chuyển sang reminding', e.phase === 'reminding');
 check('mở cửa sổ nhắc', has(fx, 'openReminder'));
-check('bắn notification', has(fx, 'notify'));
+check('KHÔNG bắn toast Windows lúc nhắc (cửa sổ nhắc đã báo, tránh trùng)', !has(fx, 'notify'));
 check('chỉ nhắc ĐÚNG MỘT LẦN, không spam', count(fx, 'openReminder') === 1);
 fx = run(e, 120);
 check('đứng yên ở reminding, không nhắc lại chồng chất', count(fx, 'openReminder') === 0);
@@ -336,7 +336,7 @@ check('đúng loại âm "breakOver"', fx.find((x) => x.type === 'sound').kind =
 b = new Engine({ ...S, sound: false }, t);
 fx = run(b, 45 * 60 + 1);
 check('tắt âm: KHÔNG có effect sound khi nhắc', !has(fx, 'sound'));
-check('tắt âm vẫn nhắc bình thường', has(fx, 'openReminder') && has(fx, 'notify'));
+check('tắt âm vẫn mở cửa sổ nhắc bình thường', has(fx, 'openReminder'));
 b.takeBreak(t);
 fx = run(b, 5 * 60 + 1);
 check('tắt âm: không âm báo hết giờ nghỉ', !has(fx, 'sound'));
@@ -365,8 +365,8 @@ const msg = b.status(t, 0).message;
 check('lời nhắc chèn đúng số phút đã cài (30)', msg.body.includes('30 phút'));
 check('không còn sót ký hiệu {mins} chưa thay', !msg.body.includes('{mins}'));
 fx = b.remindEffects();
-check('notification dùng CÙNG câu với cửa sổ nhắc (không lệch nhau)',
-  fx.find((x) => x.type === 'notify').title === b.status(t, 0).message.title);
+check('lúc nhắc CHỈ mở cửa sổ nhắc, không kèm toast Windows',
+  has(fx, 'openReminder') && !has(fx, 'notify'));
 b = fresh();
 const bTitles = [];
 for (let i = 0; i < BREAK_OVER_MESSAGES.length; i++) {
@@ -401,7 +401,7 @@ for (let s = 0; s < 8 * 3600; s++) {
 check(`8 giờ liên tục: không crash, trạng thái luôn hợp lệ`, true);
 check(`số lần nhắc hợp lý (${reminders} lần, kỳ vọng ~9 với chu kỳ 45+5 phút)`,
   reminders >= 8 && reminders <= 10);
-check('mỗi lần nhắc kèm đúng thông báo (nhắc + báo hết giờ nghỉ)', notifies === reminders * 2);
+check('mỗi chu kỳ chỉ 1 toast — báo hết giờ nghỉ, KHÔNG toast lúc nhắc', notifies === reminders);
 check('kết thúc 8 giờ ở trạng thái sạch', VALID.includes(b.phase));
 
 console.log('11. Chạy dài 8 tiếng với người dùng hay rời máy');
