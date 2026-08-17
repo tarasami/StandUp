@@ -2,7 +2,9 @@
 // Toàn bộ lỗi thật gặp ngày 10/08/2026 đều nằm ở tầng Electron chứ không phải
 // engine. Những gì tách ra được khỏi tầng đó thì phải có test, bắt đầu từ đây.
 const assert = require('node:assert');
-const { parseRegDword, parseSettingsJson, mainWindowHeight } = require('../electron/main-utils');
+const {
+  parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+} = require('../electron/main-utils');
 
 let passed = 0;
 function check(name, cond) {
@@ -54,5 +56,34 @@ check('lý do "system" cũng nới', mainWindowHeight('system', 1080, 710, 812) 
 check('màn hình thấp → kẹp về vùng làm việc', mainWindowHeight('app', 728, 710, 812) === 728);
 check('màn hình rất thấp → kẹp cả chiều cao thường',
   mainWindowHeight(null, 600, 710, 812) === 600);
+
+console.log('4. reminderXY — đặt cửa sổ nhắc theo vị trí đã chọn');
+const WIN = { width: 380, height: 250 };
+// Màn hình 1920×1080, taskbar dưới → workArea cao 1040, gốc (0,0).
+const WA = { x: 0, y: 0, width: 1920, height: 1040 };
+const br = reminderXY('bottom-right', WA, WIN);
+check('dưới-phải: cách mép phải đúng 16px',
+  br.x === 1920 - 380 - REMINDER_MARGIN && br.x === 1524);
+check('dưới-phải: cách mép dưới đúng 16px',
+  br.y === 1040 - 250 - REMINDER_MARGIN && br.y === 774);
+// Khớp phép đo thật trên bản đã cài: getBounds là toạ độ logic, GetWindowRect
+// đo được (1516,774) — lệch 8px ở x là do viền vô hình DWM, y trùng khít.
+const ce = reminderXY('center', WA, WIN);
+check('giữa: căn giữa ngang', ce.x === Math.round((1920 - 380) / 2) && ce.x === 770);
+check('giữa: căn giữa dọc', ce.y === Math.round((1040 - 250) / 2) && ce.y === 395);
+// workArea có gốc lệch: màn hình phụ bên phải (x=1920) hoặc taskbar ở trên (y=48).
+const right = reminderXY('bottom-right', { x: 1920, y: 0, width: 1920, height: 1040 }, WIN);
+check('màn hình phụ bên phải: toạ độ cộng thêm gốc x', right.x === 1920 + 1920 - 380 - REMINDER_MARGIN);
+const topbar = reminderXY('bottom-right', { x: 0, y: 48, width: 1920, height: 1032 }, WIN);
+check('taskbar ở trên: y tính theo gốc workArea', topbar.y === 48 + 1032 - 250 - REMINDER_MARGIN);
+const ctop = reminderXY('center', { x: 0, y: 48, width: 1920, height: 1032 }, WIN);
+check('giữa trên workArea lệch gốc: cộng đúng gốc y', ctop.y === Math.round(48 + (1032 - 250) / 2));
+// Kích thước lẻ → làm tròn, không để toạ độ thập phân (setPosition cần số nguyên).
+const odd = reminderXY('center', { x: 0, y: 0, width: 1001, height: 1001 }, WIN);
+check('kích thước lẻ: toạ độ giữa được làm tròn thành số nguyên',
+  Number.isInteger(odd.x) && Number.isInteger(odd.y) && odd.x === 311);
+// Lưới an toàn: giá trị lạ lọt tới đây (đáng lẽ clampSettings đã chặn) → dưới-phải.
+check('vị trí lạ → rơi về dưới-phải', reminderXY('gibberish', WA, WIN).x === br.x);
+check('vị trí undefined → rơi về dưới-phải', reminderXY(undefined, WA, WIN).y === br.y);
 
 console.log(`\nTẤT CẢ ${passed} KIỂM TRA ĐỀU ĐẠT ✅`);

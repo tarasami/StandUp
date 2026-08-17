@@ -40,4 +40,28 @@ function mainWindowHeight(blocked, maxHeight, base, warn) {
   return Math.min(blocked ? warn : base, maxHeight);
 }
 
-module.exports = { parseRegDword, parseSettingsJson, mainWindowHeight };
+// Khoảng cách từ mép màn hình khi đặt cửa sổ nhắc ở góc.
+const REMINDER_MARGIN = 16;
+
+// Toạ độ góc trên-trái để đặt cửa sổ nhắc, theo lựa chọn vị trí.
+//   wa  = workArea {x, y, width, height} — đã trừ taskbar.
+//   win = {width, height} của cửa sổ nhắc.
+// Trả về {x, y} nguyên. Chỉ 'center' là trường hợp riêng; mọi giá trị khác
+// (kể cả rác) đều rơi về góc dưới-phải — clampSettings đã lọc trước rồi nên
+// đây chỉ là lưới an toàn cuối.
+function reminderXY(pos, wa, win) {
+  if (pos === 'center') {
+    return {
+      x: Math.round(wa.x + (wa.width - win.width) / 2),
+      y: Math.round(wa.y + (wa.height - win.height) / 2),
+    };
+  }
+  return {
+    x: wa.x + wa.width - win.width - REMINDER_MARGIN,
+    y: wa.y + wa.height - win.height - REMINDER_MARGIN,
+  };
+}
+
+module.exports = {
+  parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+};

@@ -40,6 +40,7 @@ function syncForm(s) {
   set('in-interval', s.intervalMins);
   set('in-break', s.breakMins);
   set('in-idle', s.idleMins);
+  set('in-position', s.reminderPosition);
   set('in-sound', s.sound, 'checked');
   set('in-autostart', s.autoStart, 'checked');
 }
@@ -104,6 +105,7 @@ $('btn-save').addEventListener('click', async () => {
     intervalMins: +$('in-interval').value,
     breakMins: +$('in-break').value,
     idleMins: +$('in-idle').value,
+    reminderPosition: $('in-position').value,
     sound: $('in-sound').checked,
     autoStart: $('in-autostart').checked,
   });

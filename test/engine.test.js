@@ -299,6 +299,13 @@ check('Infinity → mặc định', c({ intervalMins: Infinity }).intervalMins =
 check('NaN → mặc định', c({ intervalMins: NaN }).intervalMins === 45);
 check('breakMins kẹp trong 1..60', c({ breakMins: 999 }).breakMins === 60 && c({ breakMins: 0 }).breakMins === 1);
 check('idleMins kẹp trong 1..60', c({ idleMins: 999 }).idleMins === 60 && c({ idleMins: 0 }).idleMins === 1);
+check('vị trí "bottom-right" giữ nguyên', c({ reminderPosition: 'bottom-right' }).reminderPosition === 'bottom-right');
+check('vị trí "center" giữ nguyên', c({ reminderPosition: 'center' }).reminderPosition === 'center');
+check('vị trí lạ (top-left, chưa hỗ trợ) → mặc định bottom-right',
+  c({ reminderPosition: 'top-left' }).reminderPosition === 'bottom-right');
+check('vị trí rác → mặc định', c({ reminderPosition: 'xyz' }).reminderPosition === 'bottom-right');
+check('vị trí sai kiểu (số) → mặc định', c({ reminderPosition: 5 }).reminderPosition === 'bottom-right');
+check('thiếu vị trí → mặc định bottom-right', c({}).reminderPosition === 'bottom-right');
 // Cài đặt sau khi làm sạch phải luôn dùng được cho Engine
 const clamped = c({ intervalMins: '', breakMins: 'x', idleMins: -5 });
 b = new Engine(clamped, t);

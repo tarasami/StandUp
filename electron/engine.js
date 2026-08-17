@@ -18,12 +18,17 @@ const PHASE = {
   PAUSED: 'paused',
 };
 
+// Vị trí cửa sổ nhắc. Chỉ hai lựa chọn để giữ giao diện gọn; mặc định góc
+// dưới-phải (chỗ toast Windows quen xuất hiện, không che nội dung đang làm).
+const REMINDER_POSITIONS = ['bottom-right', 'center'];
+
 const DEFAULT_SETTINGS = {
   intervalMins: 45,
   breakMins: 5,
   idleMins: 5,
   sound: true,
   autoStart: true,
+  reminderPosition: 'bottom-right',
   onboarded: false,
 };
 
@@ -36,12 +41,15 @@ function clampSettings(raw) {
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
   };
   const bool = (v, dflt) => (typeof v === 'boolean' ? v : dflt);
+  // Giá trị lạ (chuỗi rác, sai chính tả, kiểu khác) rơi về mặc định.
+  const oneOf = (v, allowed, dflt) => (allowed.includes(v) ? v : dflt);
   return {
     intervalMins: num(raw?.intervalMins, 5, 240, DEFAULT_SETTINGS.intervalMins),
     breakMins: num(raw?.breakMins, 1, 60, DEFAULT_SETTINGS.breakMins),
     idleMins: num(raw?.idleMins, 1, 60, DEFAULT_SETTINGS.idleMins),
     sound: bool(raw?.sound, DEFAULT_SETTINGS.sound),
     autoStart: bool(raw?.autoStart, DEFAULT_SETTINGS.autoStart),
+    reminderPosition: oneOf(raw?.reminderPosition, REMINDER_POSITIONS, DEFAULT_SETTINGS.reminderPosition),
     onboarded: bool(raw?.onboarded, DEFAULT_SETTINGS.onboarded),
   };
 }
@@ -288,5 +296,5 @@ class Engine {
 
 module.exports = {
   Engine, PHASE, SNOOZE_MINS, DEFAULT_SETTINGS, clampSettings,
-  REMIND_MESSAGES, BREAK_OVER_MESSAGES,
+  REMIND_MESSAGES, BREAK_OVER_MESSAGES, REMINDER_POSITIONS,
 };

@@ -7,7 +7,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execFile, execFileSync } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
-const { parseRegDword, parseSettingsJson, mainWindowHeight } = require('./main-utils');
+const { parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY } = require('./main-utils');
 
 const AUMID = 'vn.standup.app';
 
@@ -242,10 +242,10 @@ function showReminder() {
   // Bung ra ở màn hình đang có con trỏ chuột — tức màn hình người dùng đang làm
   // việc. Dùng màn hình chính thì trên máy nhiều màn hình lời nhắc sẽ hiện ở
   // một chỗ khác hẳn nơi người dùng đang nhìn, coi như không nhắc.
-  // workArea đã trừ sẵn taskbar → góc dưới-phải, cách mép 16px.
+  // workArea đã trừ sẵn taskbar; góc dưới-phải hay giữa là do người dùng chọn.
   const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
-  const b = reminderWin.getBounds();
-  reminderWin.setPosition(wa.x + wa.width - b.width - 16, wa.y + wa.height - b.height - 16);
+  const { x, y } = reminderXY(engine.settings.reminderPosition, wa, reminderWin.getBounds());
+  reminderWin.setPosition(x, y);
   // showInactive: hiện cửa sổ nhưng KHÔNG cướp focus — không phá gõ phím.
   // Nhưng showInactive chỉ đặt cửa sổ vào ĐÚNG CHỖ CŨ trong nhóm always-on-top,
   // nên vẫn có thể nằm dưới một cửa sổ always-on-top khác (đã đo: hạng 1, dưới
