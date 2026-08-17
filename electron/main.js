@@ -150,11 +150,12 @@ function applyAutoStart(enabled) {
 
 // ---- Cửa sổ ----
 
-// Chiều cao cửa sổ chính vốn được cắt vừa khít nội dung, nên dải cảnh báo chèn
-// thêm sẽ đẩy nút "Lưu cài đặt" và footer khuất xuống dưới đáy — nới thêm đúng
-// phần đó khi cảnh báo hiện, và thu lại khi người dùng đã bật thông báo lại.
-const MAIN_HEIGHT = 710;
-const MAIN_HEIGHT_WARN = 812;
+// Chiều cao cửa sổ chính cắt vừa khít nội dung: dư nhiều thì thừa khoảng trống,
+// thiếu thì nút "Lưu cài đặt" và footer bị đẩy khuất, sinh thanh cuộn. Đo thật
+// bằng DevTools (viền cửa sổ Windows chiếm 39px): nội dung thường cao 697px →
+// cần 750; khi có dải cảnh báo "Windows chặn thông báo" cao 830px → cần 880.
+const MAIN_HEIGHT = 750;
+const MAIN_HEIGHT_WARN = 880;
 
 function createWindows() {
   mainWin = new BrowserWindow({
