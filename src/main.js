@@ -11,18 +11,6 @@ const PHASE_TEXT = {
 
 let paused = false;
 
-// Khi Windows chặn toast, cửa sổ nhắc và âm báo VẪN chạy — phải nói rõ điều đó,
-// không thì người dùng tưởng cả app hỏng.
-const WARN_DETAIL = {
-  app: 'Bật lại ở Settings → System → Notifications. Cửa sổ nhắc và âm báo vẫn chạy bình thường.',
-  system: 'Toàn bộ thông báo của Windows đang tắt. Cửa sổ nhắc và âm báo vẫn chạy bình thường.',
-};
-
-function renderToastWarning(reason) {
-  $('toast-warn').classList.toggle('hidden', !reason);
-  if (reason) $('warn-detail').textContent = WARN_DETAIL[reason] || '';
-}
-
 function fmt(secs) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
@@ -48,7 +36,6 @@ function syncForm(s) {
 function render(st) {
   paused = st.phase === 'paused';
   if (st.settings) syncForm(st.settings);
-  renderToastWarning(st.toastBlocked);
   const [label, hint] = PHASE_TEXT[st.phase] || ['…', ''];
   $('phase-label').textContent = label;
   $('phase-hint').textContent = hint;
@@ -128,7 +115,6 @@ function toggleSettings() {
 }
 $('btn-settings').addEventListener('click', toggleSettings);
 
-$('btn-open-notif').addEventListener('click', () => api.openNotificationSettings());
 $('btn-test').addEventListener('click', () => api.action('test'));
 $('btn-pause').addEventListener('click', () => api.action(paused ? 'resume' : 'pauseIndef'));
 

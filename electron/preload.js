@@ -5,7 +5,6 @@ contextBridge.exposeInMainWorld('standup', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   setSettings: (s) => ipcRenderer.invoke('set-settings', s),
   getEnv: () => ipcRenderer.invoke('get-env'),
-  openNotificationSettings: () => ipcRenderer.invoke('open-notification-settings'),
   completeOnboarding: (s) => ipcRenderer.invoke('complete-onboarding', s),
   action: (name) => ipcRenderer.send('action', name),
   toggleSettings: (open) => ipcRenderer.send('toggle-settings', open),

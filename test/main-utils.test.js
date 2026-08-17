@@ -3,7 +3,7 @@
 // engine. Những gì tách ra được khỏi tầng đó thì phải có test, bắt đầu từ đây.
 const assert = require('node:assert');
 const {
-  parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
 } = require('../electron/main-utils');
 
 let passed = 0;
@@ -13,25 +13,7 @@ function check(name, cond) {
   console.log(`  ✓ ${name}`);
 }
 
-console.log('1. parseRegDword — đọc output thật của reg query');
-// Output y hệt reg.exe trả về, giữ nguyên \r\n và khoảng trắng.
-const REAL_OFF = '\r\nHKEY_CURRENT_USER\\...\\vn.standup.app\r\n    Enabled    REG_DWORD    0x0\r\n\r\n';
-const REAL_ON = '\r\nHKEY_CURRENT_USER\\...\\vn.standup.app\r\n    Enabled    REG_DWORD    0x1\r\n\r\n';
-check('Enabled = 0x0 → 0 (thông báo đang TẮT)', parseRegDword(REAL_OFF) === 0);
-check('Enabled = 0x1 → 1 (đang BẬT)', parseRegDword(REAL_ON) === 1);
-check('giá trị hex nhiều chữ số đọc đúng', parseRegDword('  X    REG_DWORD    0x1f\r\n') === 31);
-check('chữ hex viết hoa vẫn đọc được', parseRegDword('  X    REG_DWORD    0xFF\r\n') === 255);
-// Khoá không tồn tại: reg.exe in ra stdout rỗng và báo lỗi ở stderr.
-check('không có giá trị nào → null, KHÔNG phải 0', parseRegDword('\r\n\r\n') === null);
-check('chuỗi rỗng → null', parseRegDword('') === null);
-check('undefined → null (không được ném lỗi)', parseRegDword(undefined) === null);
-// Đây là điểm chết người: nhầm "không tìm thấy" thành 0 sẽ khiến app báo bị
-// chặn trong khi thật ra Windows vẫn cho thông báo bình thường.
-check('null KHÁC 0 — không được lẫn "thiếu khoá" với "đang tắt"', parseRegDword('') !== 0);
-check('bỏ qua REG_QWORD, chỉ nhận REG_DWORD',
-  parseRegDword('  LastNotificationAddedTime    REG_QWORD    0x1dd2658936bb9c2\r\n') === null);
-
-console.log('2. parseSettingsJson — chống file settings hỏng');
+console.log('1. parseSettingsJson — chống file settings hỏng');
 const GOOD = '{ "intervalMins": 45, "breakMins": 5 }';
 // Dùng dạng mã số, không viết ký tự vô hình thẳng vào mã nguồn.
 const BOM = String.fromCharCode(0xFEFF);
@@ -48,19 +30,16 @@ check('mảng → null', parseSettingsJson('[1,2,3]') === null);
 check('số trần → null', parseSettingsJson('42') === null);
 check('không ném lỗi với undefined', parseSettingsJson(undefined) === null);
 
-console.log('3. mainWindowHeight — 4 chiều cao theo đóng/mở cài đặt × có/không cảnh báo');
+console.log('2. mainWindowHeight — chiều cao theo đóng/mở cài đặt');
 // Giá trị đại diện; test chỉ kiểm hàm CHỌN đúng ô, không phải số đo thật.
-const H = { compact: 384, compactWarn: 516, full: 750, fullWarn: 880 };
-check('đóng cài đặt, không cảnh báo → compact', mainWindowHeight(false, null, 1080, H) === 384);
-check('MỞ cài đặt, không cảnh báo → full', mainWindowHeight(true, null, 1080, H) === 750);
-check('đóng cài đặt, CÓ cảnh báo → compactWarn', mainWindowHeight(false, 'app', 1080, H) === 516);
-check('MỞ cài đặt, CÓ cảnh báo → fullWarn', mainWindowHeight(true, 'app', 1080, H) === 880);
-check('lý do "system" cũng tính là bị chặn', mainWindowHeight(false, 'system', 1080, H) === 516);
+const H = { compact: 384, full: 750 };
+check('đóng cài đặt → compact', mainWindowHeight(false, 1080, H) === 384);
+check('MỞ cài đặt → full', mainWindowHeight(true, 1080, H) === 750);
 // Kẹp về vùng làm việc: màn hình thấp không chứa nổi chiều cao mong muốn.
-check('màn hình thấp → kẹp full về workArea', mainWindowHeight(true, null, 700, H) === 700);
-check('màn hình rất thấp → kẹp cả compact', mainWindowHeight(false, null, 300, H) === 300);
+check('màn hình thấp → kẹp full về workArea', mainWindowHeight(true, 700, H) === 700);
+check('màn hình rất thấp → kẹp cả compact', mainWindowHeight(false, 300, H) === 300);
 
-console.log('4. reminderXY — đặt cửa sổ nhắc theo vị trí đã chọn');
+console.log('3. reminderXY — đặt cửa sổ nhắc theo vị trí đã chọn');
 const WIN = { width: 380, height: 250 };
 // Màn hình 1920×1080, taskbar dưới → workArea cao 1040, gốc (0,0).
 const WA = { x: 0, y: 0, width: 1920, height: 1040 };

@@ -7,14 +7,6 @@
 
 const BOM = 0xFEFF;
 
-// Đọc giá trị REG_DWORD từ output của `reg query ... /v <ten>`.
-// Trả về số, hoặc null nếu output không chứa giá trị nào (khoá không tồn tại).
-// Dạng output thật: "    Enabled    REG_DWORD    0x0"
-function parseRegDword(stdout) {
-  const m = /REG_DWORD\s+0x([0-9a-f]+)/i.exec(stdout || '');
-  return m ? parseInt(m[1], 16) : null;
-}
-
 // Parse nội dung settings.json. Trả về object, hoặc null nếu hỏng/không phải object.
 function parseSettingsJson(text) {
   try {
@@ -32,16 +24,12 @@ function parseSettingsJson(text) {
   }
 }
 
-// Chiều cao cửa sổ chính theo hai trạng thái độc lập: cài đặt đang MỞ hay đóng
-// (bấm nút ⚙ để xổ ra), và có dải cảnh báo "Windows chặn thông báo" hay không.
-// Bốn chiều cao (h.compact / h.compactWarn / h.full / h.fullWarn) đo thật bằng
-// DevTools. Kẹp về vùng làm việc để cửa sổ không thò xuống dưới taskbar; vượt
-// thì để nội dung tự cuộn còn hơn mất nút.
-function mainWindowHeight(settingsOpen, blocked, maxHeight, h) {
-  const want = settingsOpen
-    ? (blocked ? h.fullWarn : h.full)
-    : (blocked ? h.compactWarn : h.compact);
-  return Math.min(want, maxHeight);
+// Chiều cao cửa sổ chính theo việc cài đặt đang MỞ (bấm nút ⚙ để xổ ra) hay đóng.
+// Hai chiều cao (h.compact / h.full) đo thật bằng DevTools. Kẹp về vùng làm việc
+// để cửa sổ không thò xuống dưới taskbar; vượt thì để nội dung tự cuộn còn hơn
+// mất nút.
+function mainWindowHeight(settingsOpen, maxHeight, h) {
+  return Math.min(settingsOpen ? h.full : h.compact, maxHeight);
 }
 
 // Khoảng cách từ mép màn hình khi đặt cửa sổ nhắc ở góc.
@@ -67,5 +55,5 @@ function reminderXY(pos, wa, win) {
 }
 
 module.exports = {
-  parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
 };

@@ -1,13 +1,13 @@
 // StandUp — main process: tray, cửa sổ, thông báo, idle detection, vòng tick 1s.
 const {
   app, BrowserWindow, Tray, Menu, Notification,
-  powerMonitor, ipcMain, nativeImage, screen, shell,
+  powerMonitor, ipcMain, nativeImage, screen,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { execFile, execFileSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
-const { parseRegDword, parseSettingsJson, mainWindowHeight, reminderXY } = require('./main-utils');
+const { parseSettingsJson, mainWindowHeight, reminderXY } = require('./main-utils');
 
 const AUMID = 'vn.standup.app';
 
@@ -91,53 +91,9 @@ function registerAumid() {
   }
 }
 
-// ---- Windows có đang nuốt toast của mình không? ----
-
-// Đây là kiểu hỏng CÂM nguy hiểm nhất với app nhắc nhở: người dùng tắt thông báo
-// của StandUp trong Settings thì Notification.isSupported() vẫn trả về true,
-// n.show() vẫn chạy trơn tru, nhưng không có gì hiện lên và app không hề biết.
-// Đã xảy ra thật và kéo dài 3 ngày. Đọc thẳng registry để phát hiện và nói ra.
-const TOAST_SWITCHES = {
-  system: ['HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\PushNotifications', 'ToastEnabled'],
-  app: [`HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Notifications\\Settings\\${AUMID}`, 'Enabled'],
-};
-
-// null = không bị chặn. 'system' = tắt toàn máy, 'app' = chỉ tắt riêng StandUp.
-let toastBlocked = null;
-
 // Người dùng đã bấm ⚙ để xổ phần cài đặt ra chưa. Renderer là nơi quyết định
 // (bấm nút), báo về đây để cửa sổ co/giãn cho vừa — xem fitMain().
 let settingsOpen = false;
-
-// REG_DWORD 0 nghĩa là TẮT. Khoá không tồn tại nghĩa là chưa ai đụng tới, tức
-// đang BẬT theo mặc định — nên `reg query` lỗi là chuyện bình thường, không log.
-function regDwordIsZero(keyPath, valueName) {
-  return new Promise((resolve) => {
-    execFile('reg', ['query', keyPath, '/v', valueName], { windowsHide: true }, (err, stdout) => {
-      if (err) return resolve(false);
-      resolve(parseRegDword(stdout) === 0);
-    });
-  });
-}
-
-async function refreshToastBlocked() {
-  if (process.platform !== 'win32') return;
-  let next = null;
-  if (process.env.STANDUP_FORCE_TOAST_BLOCKED) {
-    // Bản dev dùng AUMID là đường dẫn exe nên không có khoá registry tương ứng.
-    // Cờ này để kiểm thử giao diện cảnh báo mà không phải đụng vào cài đặt máy.
-    next = process.env.STANDUP_FORCE_TOAST_BLOCKED === 'system' ? 'system' : 'app';
-  } else if (await regDwordIsZero(...TOAST_SWITCHES.system)) {
-    next = 'system';
-  } else if (app.isPackaged && await regDwordIsZero(...TOAST_SWITCHES.app)) {
-    next = 'app';
-  }
-  if (next === toastBlocked) return;
-  toastBlocked = next;
-  debugLog(`toast bi chan = ${next ?? 'khong'}`);
-  fitMain();
-  broadcast();
-}
 
 // ---- Khởi động cùng Windows ----
 
@@ -154,15 +110,13 @@ function applyAutoStart(enabled) {
 
 // ---- Cửa sổ ----
 
-// Cửa sổ chính co/giãn theo hai trục: cài đặt đóng (chỉ trạng thái + nút) hay mở
-// (bấm ⚙ xổ cài đặt ra), và có dải cảnh báo "Windows chặn thông báo" hay không.
-// Bốn chiều cao đo thật bằng DevTools (viền cửa sổ Windows chiếm 39px). Cắt vừa
-// khít nội dung: dư thì thừa khoảng trống, thiếu thì nút bị khuất + sinh cuộn.
+// Cửa sổ chính co/giãn theo một trục: cài đặt đóng (chỉ trạng thái + nút) hay mở
+// (bấm ⚙ xổ cài đặt ra). Hai chiều cao đo thật bằng DevTools (viền cửa sổ Windows
+// chiếm 39px). Cắt vừa khít nội dung: dư thì thừa khoảng trống, thiếu thì nút bị
+// khuất + sinh thanh cuộn.
 const HEIGHTS = {
-  compact: 384,      // đóng, không cảnh báo — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
-  compactWarn: 520,  // đóng, có cảnh báo — nội dung 464px
-  full: 750,         // mở cài đặt, không cảnh báo — nội dung 697px
-  fullWarn: 880,     // mở cài đặt, có cảnh báo — nội dung 812px
+  compact: 384, // đóng — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
+  full: 750,    // mở cài đặt — nội dung 697px
 };
 
 function createWindows() {
@@ -230,7 +184,7 @@ function fitMain() {
   // Đo theo màn hình đang chứa cửa sổ, không phải màn hình chính: máy nhiều màn
   // hình rất hay có một cái thấp hơn hẳn.
   const maxH = screen.getDisplayMatching(mainWin.getBounds()).workArea.height;
-  const want = mainWindowHeight(settingsOpen, toastBlocked, maxH, HEIGHTS);
+  const want = mainWindowHeight(settingsOpen, maxH, HEIGHTS);
   const [w, h] = mainWin.getSize();
   if (h === want) return;
   // Trên Windows, setSize bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
@@ -390,9 +344,7 @@ function updateTray(st) {
       ? `StandUp — tạm dừng (còn ${mins} phút)`
       : 'StandUp — đang tạm dừng',
   }[st.phase] || 'StandUp';
-  // Cửa sổ chính thường bị ẩn trong khay, nên tooltip là chỗ duy nhất người dùng
-  // còn nhìn thấy khi toast đang bị Windows chặn.
-  tray.setToolTip(toastBlocked ? `${text}\n⚠ Windows đang tắt thông báo của StandUp` : text);
+  tray.setToolTip(text);
 
   const [iconText, iconColor] = {
     working: [String(Math.min(99, mins)), GREEN],
@@ -444,10 +396,6 @@ function applyEffects(fx) {
           const n = new Notification({ title: e.title, body: e.body });
           n.on('click', showReminder);
           n.show();
-          // n.show() không báo lỗi khi Windows nuốt toast, nên soát lại công tắc
-          // ngay tại đây: cảnh báo phải hiện từ lần nhắc đầu tiên bị mất, chứ
-          // không đợi hết chu kỳ soát định kỳ.
-          refreshToastBlocked();
         }
         break;
     }
@@ -473,15 +421,8 @@ function tick() {
   broadcast();
 }
 
-// toastBlocked thuộc về môi trường Windows, không phải trạng thái engine — ghép
-// ở đây để engine giữ được tính thuần tuý (và unit-test được). Mọi đường ra
-// renderer đều phải qua hàm này, nếu không cảnh báo sẽ nhấp nháy lúc mới mở app.
-function statusPayload() {
-  return { ...engine.status(Date.now(), idleSecs()), toastBlocked };
-}
-
 function broadcast() {
-  const st = statusPayload();
+  const st = engine.status(Date.now(), idleSecs());
   for (const w of [mainWin, reminderWin, onboardWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('status', st);
   }
@@ -491,7 +432,7 @@ function broadcast() {
 // ---- IPC cho renderer ----
 
 function wireIpc() {
-  ipcMain.handle('get-status', () => statusPayload());
+  ipcMain.handle('get-status', () => engine.status(Date.now(), idleSecs()));
   ipcMain.handle('get-settings', () => ({ ...engine.settings }));
   ipcMain.handle('set-settings', (_ev, raw) => {
     // Giữ nguyên cờ onboarded — màn hình cài đặt không được phép bật lại onboarding.
@@ -505,13 +446,6 @@ function wireIpc() {
   // Renderer cần biết đang chạy bản đóng gói hay bản dev để hiển thị đúng ghi chú
   // về mục "khởi động cùng Windows" (bản dev không ghi mục khởi động).
   ipcMain.handle('get-env', () => ({ packaged: app.isPackaged }));
-  // App không được tự bật lại công tắc thông báo của Windows — đó là quyết định
-  // của người dùng. Chỉ mở đúng trang cài đặt để họ gạt lại cho nhanh.
-  ipcMain.handle('open-notification-settings', async () => {
-    await shell.openExternal('ms-settings:notifications');
-    // Gạt xong quay lại app là thấy cảnh báo biến mất, không phải chờ tới 60s.
-    setTimeout(refreshToastBlocked, 3000);
-  });
   ipcMain.handle('complete-onboarding', (_ev, raw) => {
     const now = Date.now();
     const s = clampSettings({ ...engine.settings, ...raw, onboarded: true });
@@ -589,11 +523,6 @@ if (!app.requestSingleInstanceLock()) {
     setInterval(tick, 1000);
     // Tỉnh dậy sau sleep → tick ngay để engine xử lý khoảng trống thời gian.
     powerMonitor.on('resume', tick);
-
-    // Công tắc thông báo nằm ngoài app, người dùng gạt lúc nào cũng được → soát
-    // định kỳ. 60s là đủ nhanh mà không tốn kém (mỗi lần chỉ 1-2 lệnh reg query).
-    refreshToastBlocked();
-    setInterval(refreshToastBlocked, 60_000);
   });
 
   // App tray: không thoát khi mọi cửa sổ bị ẩn/đóng.
