@@ -1,13 +1,15 @@
 // StandUp — main process: tray, cửa sổ, thông báo, idle detection, vòng tick 1s.
 const {
   app, BrowserWindow, Tray, Menu, Notification,
-  powerMonitor, ipcMain, nativeImage, screen,
+  powerMonitor, ipcMain, nativeImage, screen, shell,
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { execFileSync } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
-const { parseSettingsJson, mainWindowHeight, reminderXY } = require('./main-utils');
+const {
+  parseSettingsJson, mainWindowHeight, reminderXY, formatLogLine, shouldRotateLog,
+} = require('./main-utils');
 
 const AUMID = 'vn.standup.app';
 
@@ -48,16 +50,45 @@ function saveSettings(s) {
     fs.renameSync(tmp, file);
   } catch (err) {
     console.error('Không lưu được cài đặt:', err);
+    logEvent('error', `Không lưu được cài đặt: ${err.message}`);
   }
 }
 
 // App chạy nền trong tray rất khó quan sát khi có sự cố. Đặt biến môi trường
-// STANDUP_DEBUG=<đường dẫn file> để ghi nhật ký mà không cần mở DevTools.
+// STANDUP_DEBUG=<đường dẫn file> để ghi vết CHI TIẾT (mỗi tick 1 dòng: trạng
+// thái, idle, ngưỡng) mà không cần mở DevTools. Chỉ dùng lúc gỡ lỗi sâu.
 function debugLog(line) {
   if (!process.env.STANDUP_DEBUG) return;
   try {
     fs.appendFileSync(process.env.STANDUP_DEBUG, `${new Date().toISOString()}\t${line}\n`);
   } catch { /* nhật ký hỏng không được làm chết app */ }
+}
+
+// ---- Nhật ký sự kiện (LUÔN BẬT) ----
+// Khác debugLog: nhật ký này luôn ghi, nhưng CHỈ các sự kiện đáng chú ý (khởi
+// động, đổi trạng thái, thao tác người dùng, đổi cài đặt, lỗi, ngủ/thức, thoát)
+// vào userData/standup.log, để soi lại khi người dùng báo sự cố. Ba nguyên tắc
+// "chắc chắn": (1) ghi đồng bộ để không mất sự kiện lúc crash; (2) xoay vòng để
+// không bao giờ phình đầy đĩa; (3) bọc try/catch để ghi lỗi không làm chết app.
+const LOG_MAX_BYTES = 1_000_000; // ~1 MB rồi đẩy sang standup.log.1 (tối đa ~2 MB)
+
+function logFile() {
+  return path.join(app.getPath('userData'), 'standup.log');
+}
+
+function logEvent(level, message) {
+  try {
+    const file = logFile();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    try {
+      if (shouldRotateLog(fs.statSync(file).size, LOG_MAX_BYTES)) {
+        // rename không đè được file đang tồn tại trên Windows → dọn .1 cũ trước.
+        fs.rmSync(`${file}.1`, { force: true });
+        fs.renameSync(file, `${file}.1`);
+      }
+    } catch { /* chưa có file — lần ghi đầu, khỏi xoay vòng */ }
+    fs.appendFileSync(file, `${formatLogLine(new Date(), level, message)}\n`);
+  } catch { /* nhật ký hỏng KHÔNG được làm chết app */ }
 }
 
 // Đăng ký AUMID qua registry để toast hiện banner ổn định. Shortcut Start Menu
@@ -88,6 +119,7 @@ function registerAumid() {
     }
   } catch (err) {
     console.error('Không đăng ký được AUMID cho toast:', err);
+    logEvent('error', `Không đăng ký được AUMID: ${err.message}`);
   }
 }
 
@@ -105,6 +137,7 @@ function applyAutoStart(enabled) {
     app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
   } catch (err) {
     console.error('Không đặt được khởi động cùng Windows:', err);
+    logEvent('error', `Không đặt được autostart: ${err.message}`);
   }
 }
 
@@ -320,13 +353,14 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Mở StandUp', click: showMain },
     { type: 'separator' },
-    { label: 'Nghỉ ngay', click: () => act(() => engine.breakNow(Date.now())) },
-    { label: 'Thử nhắc nhở', click: () => act(() => engine.triggerReminder()) },
+    { label: 'Nghỉ ngay', click: () => userAction('Nghỉ ngay (menu)', () => engine.breakNow(Date.now())) },
+    { label: 'Thử nhắc nhở', click: () => userAction('Thử nhắc (menu)', () => engine.triggerReminder()) },
     { type: 'separator' },
-    { label: 'Tạm dừng 1 giờ', click: () => act(() => engine.pause(Date.now(), 60)) },
-    { label: 'Tạm dừng (đến khi bật lại)', click: () => act(() => engine.pause(Date.now(), null)) },
-    { label: 'Tiếp tục', click: () => act(() => engine.resume(Date.now())) },
+    { label: 'Tạm dừng 1 giờ', click: () => userAction('Tạm dừng 1 giờ', () => engine.pause(Date.now(), 60)) },
+    { label: 'Tạm dừng (đến khi bật lại)', click: () => userAction('Tạm dừng đến khi bật lại', () => engine.pause(Date.now(), null)) },
+    { label: 'Tiếp tục', click: () => userAction('Tiếp tục', () => engine.resume(Date.now())) },
     { type: 'separator' },
+    { label: 'Mở thư mục nhật ký', click: () => shell.showItemInFolder(logFile()) },
     { label: 'Thoát', click: () => { app.isQuitting = true; app.quit(); } },
   ]));
   tray.on('double-click', showMain);
@@ -408,6 +442,31 @@ function act(fn) {
   broadcast();
 }
 
+// Bọc một thao tác do NGƯỜI DÙNG khởi xướng: ghi nhật ký rồi chạy. Việc đổi
+// trạng thái kéo theo sẽ được logPhaseChange() ghi riêng, nên nhật ký cho thấy
+// cả ý định (bấm gì) lẫn kết quả (trạng thái chuyển thế nào).
+function userAction(label, fn) {
+  logEvent('info', `Thao tác: ${label}`);
+  act(fn);
+}
+
+// Ghi mỗi lần engine ĐỔI trạng thái — chỉ khi khác đi, không phải mỗi tick.
+let lastLoggedPhase = null;
+function logPhaseChange() {
+  if (engine.phase === lastLoggedPhase) return;
+  const from = lastLoggedPhase ?? '(khởi tạo)';
+  const s = engine.settings;
+  const detail = {
+    reminding: engine.message ? ` — "${engine.message.title}"` : '',
+    breaking: ` — nghỉ ${s.breakMins} phút`,
+    working: ` — chu kỳ ${s.intervalMins} phút`,
+    idle: ' — người dùng rời máy',
+    paused: engine.pauseUntil == null ? ' — đến khi bật lại' : ' — có hẹn giờ',
+  }[engine.phase] || '';
+  logEvent('info', `Trạng thái: ${from} → ${engine.phase}${detail}`);
+  lastLoggedPhase = engine.phase;
+}
+
 // ---- Vòng tick & phát trạng thái ----
 
 function idleSecs() {
@@ -422,6 +481,7 @@ function tick() {
 }
 
 function broadcast() {
+  logPhaseChange();
   const st = engine.status(Date.now(), idleSecs());
   for (const w of [mainWin, reminderWin, onboardWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('status', st);
@@ -440,6 +500,7 @@ function wireIpc() {
     engine.updateSettings(Date.now(), s);
     saveSettings(s);
     applyAutoStart(s.autoStart);
+    logEvent('info', `Đổi cài đặt — chu kỳ=${s.intervalMins}', nghỉ=${s.breakMins}', rời máy=${s.idleMins}', âm=${s.sound}, tự khởi động=${s.autoStart}, vị trí nhắc=${s.reminderPosition}`);
     broadcast();
     return s;
   });
@@ -453,6 +514,7 @@ function wireIpc() {
     engine.newCycle(now); // đếm lại từ đầu với khoảng vừa chọn
     saveSettings(s);
     applyAutoStart(s.autoStart);
+    logEvent('info', `Hoàn tất onboarding — chu kỳ=${s.intervalMins}', tự khởi động=${s.autoStart}, âm=${s.sound}`);
     if (onboardWin && !onboardWin.isDestroyed()) onboardWin.close();
     broadcast();
     if (Notification.isSupported()) {
@@ -465,17 +527,19 @@ function wireIpc() {
   });
   ipcMain.on('action', (_ev, name) => {
     const now = Date.now();
+    // [nhãn nhật ký, hàm chạy] — nhãn để ghi lại người dùng đã bấm gì.
     const actions = {
-      takeBreak: () => engine.takeBreak(now),
-      snooze: () => engine.snooze(now),
-      skip: () => engine.skip(now),
-      breakNow: () => engine.breakNow(now),
-      test: () => engine.triggerReminder(),
-      pauseIndef: () => engine.pause(now, null),
-      pause1h: () => engine.pause(now, 60),
-      resume: () => engine.resume(now),
+      takeBreak: ['Nghỉ ngay', () => engine.takeBreak(now)],
+      snooze: ['Hoãn 5 phút', () => engine.snooze(now)],
+      skip: ['Bỏ qua', () => engine.skip(now)],
+      breakNow: ['Nghỉ ngay', () => engine.breakNow(now)],
+      test: ['Thử nhắc', () => engine.triggerReminder()],
+      pauseIndef: ['Tạm dừng đến khi bật lại', () => engine.pause(now, null)],
+      pause1h: ['Tạm dừng 1 giờ', () => engine.pause(now, 60)],
+      resume: ['Tiếp tục', () => engine.resume(now)],
     };
-    if (actions[name]) act(actions[name]);
+    const a = actions[name];
+    if (a) userAction(a[0], a[1]);
   });
   // Người dùng bấm ⚙ xổ/thu phần cài đặt → co giãn cửa sổ cho vừa.
   ipcMain.on('toggle-settings', (_ev, open) => {
@@ -500,7 +564,10 @@ if (!app.requestSingleInstanceLock()) {
   // cờ isQuitting là lối thoát duy nhất. Trước đây chỉ menu Thoát mới hạ cờ,
   // nên mọi đường thoát khác — Windows logoff, shutdown, app.quit() từ chỗ
   // khác — đều bị app giữ lại cho tới khi hệ điều hành cưỡng bức tắt.
-  app.on('before-quit', () => { app.isQuitting = true; });
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    logEvent('info', 'Thoát app');
+  });
 
   app.whenReady().then(() => {
     // Windows cần AppUserModelID để toast hiển thị; khi chưa đóng gói,
@@ -509,6 +576,8 @@ if (!app.requestSingleInstanceLock()) {
     registerAumid();
 
     engine = new Engine(loadSettings(), Date.now());
+    const cfg = engine.settings;
+    logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, onboarded=${cfg.onboarded}`);
     // Mục khởi động có thể biến mất ngoài tầm kiểm soát của app — uninstaller
     // của bản cũ xoá nó khi cài đè là trường hợp đã gặp thật. App lại chỉ ghi
     // mục này lúc người dùng bấm Lưu, nên giao diện cứ tick "Khởi động cùng
@@ -522,7 +591,8 @@ if (!app.requestSingleInstanceLock()) {
 
     setInterval(tick, 1000);
     // Tỉnh dậy sau sleep → tick ngay để engine xử lý khoảng trống thời gian.
-    powerMonitor.on('resume', tick);
+    powerMonitor.on('resume', () => { logEvent('info', 'Máy thức dậy sau khi ngủ'); tick(); });
+    powerMonitor.on('suspend', () => logEvent('info', 'Máy chuẩn bị ngủ'));
   });
 
   // App tray: không thoát khi mọi cửa sổ bị ẩn/đóng.

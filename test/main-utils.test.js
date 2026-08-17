@@ -4,6 +4,7 @@
 const assert = require('node:assert');
 const {
   parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  formatLogLine, shouldRotateLog,
 } = require('../electron/main-utils');
 
 let passed = 0;
@@ -67,5 +68,24 @@ check('kích thước lẻ: toạ độ giữa được làm tròn thành số n
 // Lưới an toàn: giá trị lạ lọt tới đây (đáng lẽ clampSettings đã chặn) → dưới-phải.
 check('vị trí lạ → rơi về dưới-phải', reminderXY('gibberish', WA, WIN).x === br.x);
 check('vị trí undefined → rơi về dưới-phải', reminderXY(undefined, WA, WIN).y === br.y);
+
+console.log('4. formatLogLine / shouldRotateLog — nhật ký sự kiện');
+// Tháng trong Date là 0-based: 7 = tháng 8.
+const D = new Date(2026, 7, 17, 9, 5, 3, 42);
+check('định dạng đủ ngày-giờ-mili giây + cấp',
+  formatLogLine(D, 'info', 'khởi động') === '2026-08-17 09:05:03.042  INFO   khởi động');
+check('cấp ERROR canh lề đúng', formatLogLine(D, 'error', 'x') === '2026-08-17 09:05:03.042  ERROR  x');
+check('cấp được viết hoa', formatLogLine(D, 'warn', 'x').includes('WARN'));
+// Số 1 chữ số phải đệm 0 (tháng/ngày/giờ/mili giây).
+check('đệm 0 cho số 1 chữ số',
+  formatLogLine(new Date(2026, 0, 2, 3, 4, 5, 6), 'info', 'x').startsWith('2026-01-02 03:04:05.006'));
+// Sự kiện phải luôn gọn 1 dòng, kể cả thông điệp nhiều dòng (ví dụ stack lỗi).
+check('xuống dòng trong thông điệp bị gộp thành 1 dòng',
+  formatLogLine(D, 'error', 'lỗi\ndòng2\r\ndòng3').split('\n').length === 1);
+check('thông điệp không phải chuỗi cũng không ném lỗi',
+  typeof formatLogLine(D, 'info', 42) === 'string');
+check('xoay vòng: dưới ngưỡng → không', shouldRotateLog(999999, 1000000) === false);
+check('xoay vòng: đúng ngưỡng → có', shouldRotateLog(1000000, 1000000) === true);
+check('xoay vòng: vượt ngưỡng → có', shouldRotateLog(5000000, 1000000) === true);
 
 console.log(`\nTẤT CẢ ${passed} KIỂM TRA ĐỀU ĐẠT ✅`);

@@ -54,6 +54,23 @@ function reminderXY(pos, wa, win) {
   };
 }
 
+// Định dạng một dòng nhật ký: thời gian ĐỊA PHƯƠNG (dễ đọc khi soi lỗi) + cấp +
+// thông điệp. Nhận sẵn một Date nên hàm thuần, test được. Ký tự xuống dòng trong
+// thông điệp bị đổi thành khoảng trắng để mỗi sự kiện luôn gọn đúng một dòng.
+function formatLogLine(date, level, message) {
+  const p = (n, w = 2) => String(n).padStart(w, '0');
+  const ts = `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} `
+    + `${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}.${p(date.getMilliseconds(), 3)}`;
+  const msg = String(message).replace(/[\r\n]+/g, ' ');
+  return `${ts}  ${String(level).toUpperCase().padEnd(5)}  ${msg}`;
+}
+
+// Đã đến lúc xoay vòng file nhật ký chưa: kích thước hiện tại chạm/vượt ngưỡng.
+function shouldRotateLog(currentBytes, maxBytes) {
+  return Number(currentBytes) >= Number(maxBytes);
+}
+
 module.exports = {
   parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  formatLogLine, shouldRotateLog,
 };
