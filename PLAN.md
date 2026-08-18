@@ -42,7 +42,7 @@ Người làm việc văn phòng, lập trình viên, designer… thường ng�
 | # | Tính năng | Mô tả |
 |---|---|---|
 | 1 | **Bộ đếm chu kỳ ngồi** | Mặc định 45 phút; preset 30/45/60 + tùy chỉnh tự do |
-| 2 | **Thông báo nhắc vận động** | Toast notification hệ thống kèm 3 hành động: **[Nghỉ ngay]** · **[Hoãn 5']** · **[Bỏ qua]** |
+| 2 | **Thông báo nhắc vận động** | Nhắc kèm 3 hành động: **[Nghỉ ngay]** · **[Hoãn 5']** · **[Bỏ qua]**. *(1.0 chốt dùng cửa sổ nhắc nổi làm kênh chính thay toast — toast dễ bị Windows nuốt ngầm; xem README.)* |
 | 3 | **Chế độ nghỉ** | Đếm ngược thời gian nghỉ (mặc định 5'), kết thúc → tự bắt đầu chu kỳ mới |
 | 4 | **Idle detection** | Rời máy quá N phút (mặc định 5') → coi như đã nghỉ, tự reset chu kỳ. Đây là tính năng "thông minh" tối thiểu bắt buộc có từ MVP — thiếu nó app sẽ nhắc bạn đứng dậy ngay khi bạn vừa đi ăn trưa về |
 | 5 | **Tray icon** | Hiện số phút còn lại; menu: Tạm dừng 1h / Tạm dừng đến hết ngày / Nghỉ ngay / Cài đặt / Thoát |
@@ -53,7 +53,7 @@ Người làm việc văn phòng, lập trình viên, designer… thường ng�
 ### v1.1 — nên có (ngay sau MVP)
 
 - **Overlay nghỉ**: cửa sổ mờ toàn màn hình (có thể bỏ qua) với 1 gợi ý giãn cơ ngắn kèm hình minh họa — tăng mạnh tỉ lệ thực sự đứng dậy.
-- **Chế độ Không làm phiền tự động**: phát hiện fullscreen/đang thuyết trình/đang gọi video → hoãn nhắc đến khi kết thúc.
+- **Chế độ Không làm phiền tự động**: phát hiện fullscreen/đang thuyết trình/đang gọi video → hoãn nhắc đến khi kết thúc. *(Phần fullscreen + thuyết trình + game đã làm sớm trong 1.0 qua `SHQueryUserNotificationState`, bật/tắt được; còn lại: gọi video ở cửa sổ không full-screen — Windows không báo bận nên chưa phát hiện được.)*
 - **Lịch làm việc**: chỉ nhắc trong khung giờ và ngày cấu hình (mặc định 8h–18h, T2–T6).
 - **Thống kê ngày/tuần**: số lần nghỉ, chuỗi ngồi dài nhất, tỉ lệ tuân thủ.
 
@@ -121,8 +121,8 @@ Tính khả thi kỹ thuật trên Windows (đã có API sẵn, rủi ro thấp)
 | Giai đoạn | Thời gian | Nội dung | Kết quả |
 |---|---|---|---|
 | **Sprint 0** ✅ | Tuần 1 | Dựng khung, tray icon, vòng lặp timer, cửa sổ nhắc có nút hành động, idle detection | Xong — 3 rủi ro kỹ thuật lớn nhất đều giải được, vá thêm lỗi đồng hồ chỉnh lùi |
-| **Sprint 1–2** ✅ | Tuần 2–3 | Đủ 8 hạng mục MVP, installer, autostart | Xong — onboarding, khởi động cùng Windows, 12 câu nhắc xoay vòng, âm báo, installer NSIS. 110 unit test |
-| **Sprint 3** | Tuần 4 | Beta nội bộ 5–10 người dùng thật, sửa lỗi, tinh chỉnh lời nhắc & âm thanh | Bản 1.0 phát hành |
+| **Sprint 1–2** ✅ | Tuần 2–3 | Đủ 8 hạng mục MVP, installer, autostart | Xong — onboarding, khởi động cùng Windows, 12 câu nhắc xoay vòng, âm báo, installer NSIS. 205 unit test (157 engine + 48 hàm tách) |
+| **Sprint 3** ◐ | Tuần 4 | Beta nội bộ 5–10 người dùng thật, sửa lỗi, tinh chỉnh lời nhắc & âm thanh | Bản 1.0 phát hành. *Đã gia cố trước beta: nhật ký sự cố, tự hoãn khi bị phớt lờ, nhường full màn hình (kéo sớm từ v1.1).* |
 | **Sprint 4–5** | Tuần 5–6 | v1.1: overlay nghỉ, DND tự động, lịch làm việc, thống kê | Bản 1.1 |
 | Sau đó | — | Đánh giá metrics → quyết định v2 | — |
 
