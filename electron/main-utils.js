@@ -70,7 +70,22 @@ function shouldRotateLog(currentBytes, maxBytes) {
   return Number(currentBytes) >= Number(maxBytes);
 }
 
+// Diễn giải kết quả SHQueryUserNotificationState (số 1..7 của Windows) thành "có
+// được phép bung cửa sổ nhắc lúc này không". CHỈ 5 (QUNS_ACCEPTS_NOTIFICATIONS)
+// là desktop bình thường → được phép. Mọi giá trị khác đều là lúc KHÔNG nên làm
+// phiền: 1 khoá máy/screensaver, 2 app full-screen (video, trình chiếu đang
+// xem), 3 game D3D full-screen, 4 chế độ trình chiếu, 6 quiet-time, 7 app full-
+// screen kiểu Store. Đọc KHÔNG ra số hợp lệ (truy vấn lỗi trả -1, chuỗi rỗng,
+// rác) → coi như ĐƯỢC PHÉP (fail-open): thà lỡ nhắc lúc full-screen còn hơn tự
+// tắt hẳn tính năng nhắc chỉ vì một lần hỏi Windows bị hỏng.
+const QUNS_ACCEPTS_NOTIFICATIONS = 5;
+function notificationsAllowedFromState(raw) {
+  const n = parseInt(String(raw).trim(), 10);
+  if (!Number.isInteger(n) || n < 1 || n > 7) return true; // không rõ → cho phép
+  return n === QUNS_ACCEPTS_NOTIFICATIONS;
+}
+
 module.exports = {
   parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
-  formatLogLine, shouldRotateLog,
+  formatLogLine, shouldRotateLog, notificationsAllowedFromState,
 };

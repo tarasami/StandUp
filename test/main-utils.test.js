@@ -4,7 +4,7 @@
 const assert = require('node:assert');
 const {
   parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
-  formatLogLine, shouldRotateLog,
+  formatLogLine, shouldRotateLog, notificationsAllowedFromState,
 } = require('../electron/main-utils');
 
 let passed = 0;
@@ -87,5 +87,26 @@ check('thông điệp không phải chuỗi cũng không ném lỗi',
 check('xoay vòng: dưới ngưỡng → không', shouldRotateLog(999999, 1000000) === false);
 check('xoay vòng: đúng ngưỡng → có', shouldRotateLog(1000000, 1000000) === true);
 check('xoay vòng: vượt ngưỡng → có', shouldRotateLog(5000000, 1000000) === true);
+
+console.log('5. notificationsAllowedFromState — chỉ nhắc khi Windows cho phép');
+const A = notificationsAllowedFromState;
+// 5 = QUNS_ACCEPTS_NOTIFICATIONS: desktop bình thường → được nhắc.
+check('trạng thái 5 (bình thường) → được phép', A('5') === true);
+check('có xuống dòng vẫn đọc đúng', A('5\r\n') === true);
+check('có khoảng trắng thừa vẫn đọc đúng', A('  5  ') === true);
+// Mọi trạng thái "đang bận" → KHÔNG nhắc (khoan bung tới khi rảnh).
+check('1 (khoá máy/screensaver) → hoãn', A('1') === false);
+check('2 (app full-screen: video/trình chiếu) → hoãn', A('2') === false);
+check('3 (game D3D full-screen) → hoãn', A('3') === false);
+check('4 (chế độ trình chiếu) → hoãn', A('4') === false);
+check('6 (quiet-time) → hoãn', A('6') === false);
+check('7 (app Store full-screen) → hoãn', A('7') === false);
+// Fail-open: hỏi hỏng thì THÀ nhắc còn hơn tắt hẳn tính năng.
+check('-1 (truy vấn lỗi) → fail-open, vẫn nhắc', A('-1') === true);
+check('chuỗi rỗng → fail-open', A('') === true);
+check('rác không phải số → fail-open', A('abc') === true);
+check('số ngoài dải 1..7 (99) → fail-open', A('99') === true);
+check('0 (ngoài dải) → fail-open', A('0') === true);
+check('undefined → fail-open', A(undefined) === true);
 
 console.log(`\nTẤT CẢ ${passed} KIỂM TRA ĐỀU ĐẠT ✅`);

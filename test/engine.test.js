@@ -221,6 +221,41 @@ run(b, IGNORED_RENAG_SECS + 2);
 check('tạm dừng có hẹn giờ: bỏ mặc lời nhắc thử → vẫn tạm dừng, còn nguyên mốc hẹn',
   b.phase === 'paused' && b.status(t, 0).remainingSecs > 55 * 60);
 
+console.log('5e. Hoãn nhắc khi Windows bận (toàn màn hình/trình chiếu/game)');
+// Tới giờ nhắc nhưng canNotify=false → GIỮ working, không bung đè lên full-screen.
+b = fresh();
+run(b, 45 * 60 - 1); // còn 1 giây là tới hạn, vẫn working
+check('sát giờ, chưa tới: working', b.phase === 'working');
+fx = [];
+for (let i = 0; i < 120; i++) fx.push(...b.tick((t += 1000), 0, false)); // quá hạn 2 phút khi đang bận
+check('đang full-screen: tới giờ vẫn KHÔNG bung lời nhắc', b.phase === 'working');
+check('không có openReminder nào khi đang bận', !has(fx, 'openReminder'));
+// Rảnh trở lại → nhắc NGAY ở tick kế.
+fx = b.tick((t += 1000), 0, true);
+check('thoát full-screen → bung lời nhắc ngay', b.phase === 'reminding' && has(fx, 'openReminder'));
+
+// Bỏ trống canNotify (mặc định true) = giữ nguyên hành vi cũ.
+b = fresh();
+fx = [];
+for (let i = 0; i < 45 * 60 + 1; i++) fx.push(...b.tick((t += 1000), 0));
+check('bỏ trống canNotify: mặc định vẫn nhắc như cũ', b.phase === 'reminding' && has(fx, 'openReminder'));
+
+// Đang chờ-vì-bận mà người dùng rời máy → idle vẫn được ưu tiên (đã nghỉ thật).
+b = fresh();
+for (let i = 0; i < 45 * 60 + 5; i++) b.tick((t += 1000), 0, false); // quá hạn khi đang bận
+check('quá hạn nhưng đang bận: vẫn ở working (đang chờ rảnh)', b.phase === 'working');
+b.tick((t += 1000), 6 * 60, false); // rời máy khi đang chờ
+check('đang chờ mà rời máy → sang idle (không kẹt ở working)', b.phase === 'idle');
+
+// Lời nhắc đã HOÃN, tới hạn lúc đang bận cũng phải khoan bung.
+b = fresh();
+b.triggerReminder(t);
+b.snooze(t); // hẹn lại 5 phút, về working
+for (let i = 0; i < 5 * 60 + 30; i++) b.tick((t += 1000), 0, false);
+check('lời nhắc đã hoãn, tới hạn lúc đang bận → vẫn khoan bung', b.phase === 'working');
+fx = b.tick((t += 1000), 0, true);
+check('hết bận → lời nhắc đã hoãn bung ra', b.phase === 'reminding' && has(fx, 'openReminder'));
+
 console.log('6. Tạm dừng');
 b = fresh();
 b.pause(t, 60);

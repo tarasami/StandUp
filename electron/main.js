@@ -5,10 +5,11 @@ const {
 } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, execFile } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
 const {
   parseSettingsJson, mainWindowHeight, reminderXY, formatLogLine, shouldRotateLog,
+  notificationsAllowedFromState,
 } = require('./main-utils');
 
 const AUMID = 'vn.standup.app';
@@ -502,6 +503,65 @@ function logPhaseChange() {
   lastLoggedPhase = engine.phase;
 }
 
+// ---- Phát hiện toàn màn hình / trình chiếu (để KHÔNG bung lời nhắc đè lên) ----
+// Cửa sổ nhắc là always-on-top mà Windows KHÔNG tự nén như toast — nên nếu không
+// tự kiểm, lời nhắc sẽ nhảy đè lên game full-screen, video, hay lúc họp chia sẻ
+// màn hình. Hỏi chính API mà Windows dùng để quyết định có hiện toast không:
+// SHQueryUserNotificationState (chỉ 5 = desktop bình thường mới bung — xem
+// notificationsAllowedFromState). Gọi native qua PowerShell + Add-Type, giống
+// cách app chạy 'reg': không thêm phụ thuộc, không cần trình biên dịch lúc build.
+//
+// Ba nguyên tắc để việc hỏi han này KHÔNG bao giờ hại tính năng nhắc:
+//   (1) BẤT ĐỒNG BỘ + có cache — tick đọc cache tức thì, không bao giờ bị chặn;
+//   (2) TIẾT LƯU — chỉ hỏi khi lời nhắc sắp tới (≤15s) hoặc đang quá hạn chờ, và
+//       nhiều nhất mỗi 8 giây một lần, để không spawn PowerShell liên tục;
+//   (3) FAIL-OPEN — mọi trục trặc (lỗi, timeout, số lạ) đều coi như ĐƯỢC PHÉP,
+//       thà lỡ nhắc lúc full-screen còn hơn im lặng tắt hẳn tính năng nhắc.
+const DND_APPROACH_SECS = 15;       // chỉ bắt đầu hỏi khi còn ≤15s nữa là tới giờ
+const DND_CHECK_INTERVAL_MS = 8000; // hỏi nhiều nhất mỗi 8 giây
+const DND_QUERY_TIMEOUT_MS = 8000;  // hỏi quá lâu = coi như hỏng → fail-open
+
+// Truyền C# qua -EncodedCommand (base64 UTF-16LE) để né sạch mọi rắc rối trích
+// dẫn lồng nhau. $ProgressPreference tắt để stdout chỉ còn đúng con số trạng thái.
+const DND_PS = [
+  "$ProgressPreference='SilentlyContinue'",
+  'Add-Type -TypeDefinition @"',
+  'using System;',
+  'using System.Runtime.InteropServices;',
+  'public static class Dnd {',
+  '  [DllImport("shell32.dll")]',
+  '  public static extern int SHQueryUserNotificationState(out int state);',
+  '  public static int Get(){ int s; int hr = SHQueryUserNotificationState(out s); return hr==0 ? s : -1; }',
+  '}',
+  '"@',
+  '[Dnd]::Get()',
+].join('\n');
+const DND_B64 = Buffer.from(DND_PS, 'utf16le').toString('base64');
+
+let notifyAllowed = true;  // cache: Windows có đang cho phép bung lời nhắc không
+let dndChecking = false;   // đang có một truy vấn chạy dở (đừng spawn chồng)
+let lastDndCheckAt = 0;    // mốc lần hỏi gần nhất (để tiết lưu)
+
+function refreshNotifyAllowed() {
+  if (process.platform !== 'win32') { notifyAllowed = true; return; }
+  const now = Date.now();
+  if (dndChecking || now - lastDndCheckAt < DND_CHECK_INTERVAL_MS) return;
+  lastDndCheckAt = now;
+  dndChecking = true;
+  execFile('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', DND_B64],
+    { timeout: DND_QUERY_TIMEOUT_MS, windowsHide: true }, (err, stdout) => {
+      dndChecking = false;
+      const was = notifyAllowed;
+      // Lỗi/timeout → fail-open: không để việc hỏi hỏng làm tắt tính năng nhắc.
+      notifyAllowed = err ? true : notificationsAllowedFromState(stdout);
+      if (was && !notifyAllowed) {
+        logEvent('info', `Windows đang bận (toàn màn hình/trình chiếu) — tạm hoãn lời nhắc tới khi rảnh [trạng thái ${String(stdout).trim()}]`);
+      } else if (!was && notifyAllowed) {
+        logEvent('info', 'Windows rảnh trở lại — sẽ nhắc khi tới hạn');
+      }
+    });
+}
+
 // ---- Vòng tick & phát trạng thái ----
 
 function idleSecs() {
@@ -509,9 +569,16 @@ function idleSecs() {
 }
 
 function tick() {
+  const now = Date.now();
   const idle = idleSecs();
-  debugLog(`${engine.phase}\tidle=${idle}\tnguong=${engine.idleThresholdSecs()}`);
-  applyEffects(engine.tick(Date.now(), idle));
+  // Chỉ hỏi Windows khi lời nhắc SẮP tới hoặc đang quá hạn chờ — lúc bình thường
+  // khỏi hỏi cho nhẹ. refreshNotifyAllowed tự tiết lưu nên gọi mỗi tick vô hại.
+  const pre = engine.status(now, idle);
+  if (pre.phase === 'working' && pre.remainingSecs <= DND_APPROACH_SECS) {
+    refreshNotifyAllowed();
+  }
+  debugLog(`${engine.phase}\tidle=${idle}\tnguong=${engine.idleThresholdSecs()}\tnhac_duoc=${notifyAllowed}`);
+  applyEffects(engine.tick(now, idle, notifyAllowed));
   broadcast();
 }
 

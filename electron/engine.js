@@ -148,7 +148,9 @@ class Engine {
 
   // Gọi mỗi ~1 giây. Trả về danh sách effect cho tầng ngoài thực thi:
   //   {type:'openReminder'} | {type:'closeReminder'} | {type:'notify', title, body}
-  tick(now, idleSecs) {
+  // canNotify: Windows có đang cho phép bung lời nhắc không (false khi người dùng
+  // đang toàn màn hình/trình chiếu/game). Mặc định true — tầng ngoài truyền vào.
+  tick(now, idleSecs, canNotify = true) {
     const fx = [];
     const gapSecs = (now - this.lastTick) / 1000;
     this.lastTick = now;
@@ -169,9 +171,16 @@ class Engine {
         if (idleSecs >= this.idleThresholdSecs()) {
           this.phase = PHASE.IDLE;
         } else if (now >= this.deadline) {
-          this.phase = PHASE.REMINDING;
-          this.remindingSince = now;
-          fx.push(...this.remindEffects());
+          // Tới giờ nhắc — nhưng nếu Windows đang bận (toàn màn hình/trình chiếu/
+          // game) thì KHOAN bung, kẻo lời nhắc always-on-top nhảy đè lên. Giữ
+          // nguyên working; deadline đã qua nên mỗi tick sau kiểm lại, hễ rảnh là
+          // nhắc ngay. Không dời deadline (tránh cộng dồn trễ) và cũng không tính
+          // đây là "bị phớt lờ" — chưa hề hiện ra thì lấy gì mà phớt lờ.
+          if (canNotify) {
+            this.phase = PHASE.REMINDING;
+            this.remindingSince = now;
+            fx.push(...this.remindEffects());
+          }
         }
         break;
 
