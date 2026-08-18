@@ -19,6 +19,7 @@ let tray = null;
 let mainWin = null;
 let reminderWin = null;
 let onboardWin = null;
+let overlayWin = null;
 
 // Khi Windows tự chạy app lúc đăng nhập, không bung cửa sổ ra giữa màn hình.
 const startHidden = process.argv.includes('--hidden');
@@ -114,6 +115,7 @@ function installCrashLogging() {
     const which = mainWin && contents === mainWin.webContents ? 'cửa sổ chính'
       : reminderWin && contents === reminderWin.webContents ? 'cửa sổ nhắc'
       : onboardWin && contents === onboardWin.webContents ? 'onboarding'
+      : overlayWin && contents === overlayWin.webContents ? 'màn nghỉ'
       : 'renderer';
     logEvent('error', `Renderer chết — ${which}: lý do=${details.reason}, mã thoát=${details.exitCode}`);
   });
@@ -183,7 +185,7 @@ function applyAutoStart(enabled) {
 // khuất + sinh thanh cuộn.
 const HEIGHTS = {
   compact: 384, // đóng — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
-  full: 800,    // mở cài đặt — nội dung ~742px (thêm ô "ẩn khi full màn hình")
+  full: 864,    // mở cài đặt — đo thật 824px nội dung + 39px viền = 863
 };
 
 function createWindows() {
@@ -244,6 +246,35 @@ function createWindows() {
       reminderWin.hide();
     }
   });
+
+  // Màn nghỉ che màn hình. Dựng sẵn từ đầu (ẩn) chứ không tạo mới mỗi lần nghỉ:
+  // tạo cửa sổ mất cả trăm ms và nháy khung trắng, rất lộ khi nó chiếm cả màn hình.
+  overlayWin = new BrowserWindow({
+    show: false,
+    frame: false,
+    // Không dùng setFullScreen: trên Windows nó chạy hoạt ảnh chuyển desktop,
+    // chậm và giật. Tự đặt bounds đúng bằng màn hình vừa nhanh vừa gọn.
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    // Nền trong mờ, thấy được công việc phía sau (màu thật nằm ở CSS).
+    transparent: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  overlayWin.loadFile(path.join(__dirname, '..', 'src', 'overlay.html'));
+  overlayWin.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      overlayWin.hide();
+    }
+  });
 }
 
 function fitMain() {
@@ -282,6 +313,29 @@ function showReminder() {
   // thanh taskbar). moveTop() nâng hẳn lên đỉnh nhóm mà vẫn không cướp focus.
   reminderWin.showInactive();
   reminderWin.moveTop();
+}
+
+function overlayAlive() {
+  return overlayWin && !overlayWin.isDestroyed();
+}
+
+function showOverlay() {
+  if (!overlayAlive()) return;
+  // Phủ trọn màn hình người dùng đang làm việc (theo con trỏ, như cửa sổ nhắc).
+  // Dùng bounds chứ không workArea: có chừa taskbar ra thì màn nghỉ trông như một
+  // cửa sổ to đùng, và người dùng bấm luôn sang app khác — mất tác dụng.
+  const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
+  overlayWin.setBounds({ x: d.x, y: d.y, width: d.width, height: d.height });
+  // Khác cửa sổ nhắc (showInactive, tránh cướp focus lúc đang gõ): màn nghỉ PHẢI
+  // nhận focus, vì người dùng vừa tự bấm "Nghỉ ngay" và phím Esc chỉ chạy khi
+  // cửa sổ đang được focus.
+  overlayWin.show();
+  overlayWin.focus();
+  overlayWin.moveTop();
+}
+
+function hideOverlay() {
+  if (overlayAlive() && overlayWin.isVisible()) overlayWin.hide();
 }
 
 // Lần chạy đầu: một màn hình duy nhất, chọn khoảng nhắc rồi bắt đầu.
@@ -440,6 +494,12 @@ function applyEffects(fx) {
       case 'closeReminder':
         if (reminderAlive()) reminderWin.hide();
         break;
+      case 'openOverlay':
+        showOverlay();
+        break;
+      case 'closeOverlay':
+        hideOverlay();
+        break;
       case 'sound':
         // Phát trong renderer cửa sổ chính (Web Audio) — chạy cả khi cửa sổ ẩn.
         if (mainWin && !mainWin.isDestroyed()) {
@@ -492,7 +552,7 @@ function logPhaseChange() {
   const s = engine.settings;
   const detail = {
     reminding: engine.message ? ` — "${engine.message.title}"` : '',
-    breaking: ` — nghỉ ${s.breakMins} phút`,
+    breaking: ` — nghỉ ${s.breakMins} phút${engine.stretch ? `, động tác "${engine.stretch.name}"` : ''}`,
     // Thời gian còn lại THẬT tới lần nhắc kế — đúng cho cả chu kỳ đầy đủ (~45'),
     // hoãn tay và tự-hoãn (~5'). Ghi "chu kỳ 45 phút" cứng sẽ nói dối lúc hoãn.
     working: ` — còn ~${Math.max(1, Math.round((engine.deadline - Date.now()) / 60_000))} phút tới lần nhắc`,
@@ -590,7 +650,12 @@ function tick() {
 function broadcast() {
   logPhaseChange();
   const st = engine.status(Date.now(), idleSecs());
-  for (const w of [mainWin, reminderWin, onboardWin]) {
+  // Lưới đỡ: một cửa sổ che kín màn hình mà kẹt lại thì người dùng coi như mất
+  // máy — hậu quả nặng hơn hẳn mọi lỗi khác của app này. Effect đóng overlay đã
+  // rải ở mọi lối ra khỏi giờ nghỉ, nhưng ở đây kiểm lại theo trạng thái thật
+  // mỗi giây: không còn nghỉ mà overlay còn hiện thì đóng ngay.
+  if (st.phase !== 'breaking') hideOverlay();
+  for (const w of [mainWin, reminderWin, onboardWin, overlayWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('status', st);
   }
   updateTray(st);
@@ -607,7 +672,7 @@ function wireIpc() {
     engine.updateSettings(Date.now(), s);
     saveSettings(s);
     applyAutoStart(s.autoStart);
-    logEvent('info', `Đổi cài đặt — chu kỳ=${s.intervalMins}', nghỉ=${s.breakMins}', rời máy=${s.idleMins}', âm=${s.sound}, tự khởi động=${s.autoStart}, vị trí nhắc=${s.reminderPosition}, ẩn khi full=${s.deferFullscreen}`);
+    logEvent('info', `Đổi cài đặt — chu kỳ=${s.intervalMins}', nghỉ=${s.breakMins}', rời máy=${s.idleMins}', âm=${s.sound}, tự khởi động=${s.autoStart}, vị trí nhắc=${s.reminderPosition}, ẩn khi full=${s.deferFullscreen}, màn nghỉ=${s.breakOverlay}`);
     broadcast();
     return s;
   });
@@ -688,7 +753,7 @@ if (!app.requestSingleInstanceLock()) {
 
     engine = new Engine(loadSettings(), Date.now());
     const cfg = engine.settings;
-    logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, ẩn khi full=${cfg.deferFullscreen}, onboarded=${cfg.onboarded}`);
+    logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, ẩn khi full=${cfg.deferFullscreen}, màn nghỉ=${cfg.breakOverlay}, onboarded=${cfg.onboarded}`);
     // Mục khởi động có thể biến mất ngoài tầm kiểm soát của app — uninstaller
     // của bản cũ xoá nó khi cài đè là trường hợp đã gặp thật. App lại chỉ ghi
     // mục này lúc người dùng bấm Lưu, nên giao diện cứ tick "Khởi động cùng

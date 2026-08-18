@@ -237,3 +237,110 @@ body.reminder input { -webkit-app-region: no-drag; }
   color: var(--accent);
   margin: 6px 0 14px;
 }
+
+/* ============ Màn nghỉ toàn màn hình ============ */
+
+body.overlay {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Hơi trong suốt để vẫn thấy mờ mờ công việc phía sau — che hẳn khiến người
+     dùng thấy bị cắt ngang, còn thấy được nền thì cảm giác "tạm dừng" nhẹ hơn. */
+  background: rgba(12, 14, 20, 0.93);
+  cursor: default;
+}
+
+.ov-wrap { text-align: center; padding: 24px; max-width: 620px; }
+
+.ov-label { font-size: 17px; color: var(--muted); letter-spacing: 0.4px; }
+
+.ov-countdown {
+  font-size: 84px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin: 2px 0 26px;
+  line-height: 1.05;
+}
+
+.ov-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px 30px;
+}
+.ov-icon { font-size: 52px; line-height: 1; }
+.ov-name { font-size: 22px; margin-top: 10px; }
+.ov-text {
+  color: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.65;
+  margin-top: 10px;
+}
+
+.ov-skip { margin-top: 26px; padding: 11px 22px; font-size: 14px; }
+.ov-hint { color: var(--muted); font-size: 12px; margin-top: 12px; }
+.ov-hint kbd {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+/* ---- Hình minh hoạ giãn cơ trong màn nghỉ (vẽ bằng SVG/CSS, mỗi hình vài KB) ---- */
+.ov-fig, .ov-eyes { width: 172px; height: 180px; display: none; margin: 0 auto; }
+.ov-fig line, .ov-fig circle { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; fill: none; }
+/* transform-box: view-box để transform-origin (px) tính theo hệ toạ độ viewBox. */
+.ov-fig .p-headneck, .ov-fig .arm, .ov-fig .hand, .ov-fig .leg, .ov-fig .upper, .ov-fig .body { transform-box: view-box; }
+.ov-fig .p-headneck { transform-origin: 100px 76px; }   /* khớp cổ */
+.ov-fig .arm-l { transform-origin: 72px 88px; }          /* vai trái */
+.ov-fig .arm-r { transform-origin: 128px 88px; }         /* vai phải */
+.ov-fig .hand-l { transform-origin: 66px 126px; }        /* cổ tay trái */
+.ov-fig .hand-r { transform-origin: 134px 126px; }       /* cổ tay phải */
+.ov-fig .leg-l, .ov-fig .leg-r, .ov-fig .upper { transform-origin: 100px 140px; } /* hông */
+.ov-fig .hand { display: none; }                          /* chỉ hiện ở động tác cổ tay */
+
+/* Xoay vai: hai tay vẽ vòng tròn đều. */
+.ov-fig.fig-shoulders .arm-l { animation: ovRollL 2.6s linear infinite; }
+.ov-fig.fig-shoulders .arm-r { animation: ovRollR 2.6s linear infinite; }
+/* Duỗi cổ: nghiêng đầu qua lại, giữ ở mỗi bên. */
+.ov-fig.fig-neck .p-headneck { animation: ovNeck 3.4s ease-in-out infinite; }
+/* Vươn người: hai tay đưa lên quá đầu, giữ, rồi hạ. */
+.ov-fig.fig-reach .arm-l { animation: ovReachL 3.2s ease-in-out infinite; }
+.ov-fig.fig-reach .arm-r { animation: ovReachR 3.2s ease-in-out infinite; }
+/* Gập lưng: gập cả thân trên xuống ở hông. */
+.ov-fig.fig-bend .upper { animation: ovBend 3.6s ease-in-out infinite; }
+/* Giãn cổ tay: hiện hai bàn tay, xoay vòng ở cổ tay. */
+.ov-fig.fig-wrist .hand { display: block; }
+.ov-fig.fig-wrist .hand-l { animation: ovRollL 2.2s linear infinite; }
+.ov-fig.fig-wrist .hand-r { animation: ovRollR 2.2s linear infinite; }
+/* Đi vài bước: chân và tay so le như đi tại chỗ. */
+.ov-fig.fig-walk .leg-l, .ov-fig.fig-walk .arm-r { animation: ovSwingA 1.1s ease-in-out infinite; }
+.ov-fig.fig-walk .leg-r, .ov-fig.fig-walk .arm-l { animation: ovSwingB 1.1s ease-in-out infinite; }
+/* Nhón chân: cả người nhấc lên hạ xuống. */
+.ov-fig.fig-calf .body { animation: ovCalf 1.5s ease-in-out infinite; }
+
+@keyframes ovRollL { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes ovRollR { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes ovNeck { 0%,100% { transform: rotate(0deg); } 22%,42% { transform: rotate(-27deg); } 60%,80% { transform: rotate(27deg); } }
+@keyframes ovReachL { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(150deg); } }
+@keyframes ovReachR { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(-150deg); } }
+@keyframes ovBend { 0%,100% { transform: rotate(0deg); } 35%,65% { transform: rotate(60deg); } }
+@keyframes ovSwingA { 0%,100% { transform: rotate(20deg); } 50% { transform: rotate(-20deg); } }
+@keyframes ovSwingB { 0%,100% { transform: rotate(-20deg); } 50% { transform: rotate(20deg); } }
+@keyframes ovCalf { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+
+/* Cho mắt nghỉ: hình mắt riêng (que người không có mặt), con ngươi đảo chậm nhìn ra xa. */
+.ov-eyes .eyeball { stroke: var(--accent); stroke-width: 6; fill: none; }
+.ov-eyes .pupil { fill: var(--accent); stroke: none; transform-box: view-box; }
+.ov-eyes.look .pupil { animation: ovGaze 4.2s ease-in-out infinite; }
+@keyframes ovGaze { 0%,100% { transform: translateX(0); } 20%,32% { transform: translateX(-13px); } 60%,72% { transform: translateX(13px); } }
+
+/* Ai bật "giảm chuyển động" trong Windows thì các hình đứng yên ở tư thế đầu. */
+@media (prefers-reduced-motion: reduce) {
+  .ov-fig *, .ov-eyes * { animation: none !important; }
+}

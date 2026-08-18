@@ -37,7 +37,7 @@ npm run icon
 
 - ⏱ Chu kỳ nhắc cấu hình được (mặc định 45 phút) — đếm bằng **timestamp tuyệt đối**, sống sót qua sleep/hibernate.
 - 🔔 Khi tới giờ: **cửa sổ nhắc nổi** góc màn hình (không cướp focus) với 3 nút **Nghỉ ngay / Hoãn 5' / Bỏ qua**. Đây là kênh nhắc **duy nhất** lúc tới giờ — không bắn toast Windows (dễ bị hệ thống nuốt ngầm). Lời nhắc bị **phớt lờ quá 3 phút** sẽ tự đóng và **hoãn 5'**, để app không kẹt mãi ở màn nhắc rồi im luôn.
-- 🧘 Chế độ nghỉ có đếm ngược; hết giờ nghỉ tự bắt đầu chu kỳ mới.
+- 🧘 **Màn nghỉ che màn hình** (bật/tắt được, mặc định bật): mỗi lần nghỉ hiện **một động tác giãn cơ** kèm **hình động** — 8 động tác xoay vòng (vai, cổ, lưng, cổ tay, mắt, chân) vẽ bằng SVG/CSS, không file nặng — cùng đồng hồ đếm ngược; thoát bằng **Esc** hoặc nút **Làm việc tiếp**. Tắt công tắc thì giờ nghỉ chỉ đếm ngược ở cửa sổ nhỏ như cũ. Hết giờ nghỉ tự bắt đầu chu kỳ mới.
 - 👣 **Idle detection**: rời máy quá N phút (mặc định 5') → tự coi là đã nghỉ, quay lại máy là chu kỳ mới tự chạy. Đứng dậy bỏ đi ngay sau khi được nhắc cũng được tự ghi nhận — không cần bấm gì.
 - 📌 Tray icon **hiện số phút còn lại ngay trên icon** (đổi màu theo trạng thái: xanh = đang làm việc, vàng = nhắc/nghỉ, xám = rời máy/tạm dừng); tooltip chi tiết; menu Nghỉ ngay / Thử nhắc nhở / Tạm dừng 1 giờ / Tạm dừng vô thời hạn / Tiếp tục / Thoát.
 - 🎉 **Onboarding 1 màn hình** cho lần chạy đầu: chọn khoảng nhắc (preset 30/45/60 hoặc tự nhập, đồng bộ hai chiều), bật/tắt khởi động cùng Windows và âm báo, kèm hướng dẫn ghim icon tray. Bấm **Bắt đầu** là app thu vào khay và đếm luôn.
@@ -61,10 +61,12 @@ src/
   index.html     # Cửa sổ chính: trạng thái + cài đặt (gọn, xổ ra khi bấm ⚙)
   onboarding.html# Màn hình lần chạy đầu
   reminder.html  # Cửa sổ nhắc nổi (frameless, always-on-top)
+  overlay.html   # Màn nghỉ che màn hình + hình động giãn cơ (SVG/CSS)
+  overlay.js     # Chọn hình theo động tác (que người / mắt / emoji)
 tools/
   make-icon.js   # Sinh icon.ico 7 kích thước, không cần thư viện ngoài
 test/
-  engine.test.js      # 157 kiểm tra — engine thuần
+  engine.test.js      # 186 kiểm tra — engine thuần
   main-utils.test.js  # 48 kiểm tra — hàm thuần tách khỏi main
 ```
 
@@ -87,10 +89,11 @@ Nguyên tắc kiến trúc: **toàn bộ logic nghiệp vụ nằm trong `engine
 - **Lời nhắc tới giờ không còn dùng toast Windows** — chỉ mở cửa sổ nhắc nổi (có nút hành động, không bị hệ thống nuốt ngầm). Toast **giờ chỉ còn dùng lúc hết giờ nghỉ và xong onboarding** (hai chỗ không có cửa sổ nào khác báo). Vì hai chỗ đó vẫn cần banner nên phần đăng ký AUMID dưới đây vẫn giữ.
 - **Toast banner cần đăng ký AUMID qua registry.** Shortcut Start Menu mang AppUserModelID (cơ chế electron-builder tạo sẵn) là KHÔNG đủ trên mọi máy: đã gặp trường hợp toast vào Action Center nhưng banner không bật. App tự ghi khoá `HKCU\Software\Classes\AppUserModelId\vn.standup.app` (DisplayName kiểu REG_EXPAND_SZ + IconUri) mỗi lần khởi động bản đóng gói (`registerAumid()` trong main.js); uninstaller dọn khoá này (`build/installer.nsh`). Chẩn đoán toast khi cần: `SHQueryUserNotificationState` cho trạng thái hệ thống, `ToastNotificationManager::History.GetHistory(aumid)` chứng minh việc giao nhận không phụ thuộc banner có hiện hay không.
 - **Nhường toàn màn hình hỏi Windows chứ không tự đoán.** `SHQueryUserNotificationState` (shell32) trả 1–7; chỉ `5 = QUNS_ACCEPTS_NOTIFICATIONS` mới cho nhắc, còn 2 (app full-screen: video/trình chiếu), 3 (game D3D), 4 (chế độ trình chiếu)… thì hoãn. Gọi qua PowerShell `-EncodedCommand` (base64 UTF-16LE, tránh lỗi trích dẫn lồng, kèm `$ProgressPreference='SilentlyContinue'` cho stdout sạch), `execFile` **bất đồng bộ** + cache + throttle, và **fail-open** (truy vấn lỗi/timeout → vẫn nhắc) để một sự cố tra cứu không bao giờ khiến app im mãi. Chỉ hỏi khi sắp tới giờ nhắc (trong ~15s) cho đỡ tốn tài nguyên. Bẫy tự kiểm: cửa sổ full-screen sinh trong tiến trình nền phải gọi `app.focus({ steal: true })` mới được Windows tính là QUNS_BUSY (chống cướp foreground).
+- **Hình giãn cơ trong màn nghỉ vẽ bằng SVG/CSS, không file ảnh/video** (đúng lối `make-icon.js` — vẽ bằng code thay vì ship asset): mỗi hình vài KB, offline, sửa & dịch dễ, hợp định vị "nhẹ & sạch". Xoay quanh khớp (cổ, vai, hông…) bằng `transform-origin` (px) + **`transform-box: view-box`** để tính theo hệ toạ độ viewBox — thiếu `transform-box` thì khớp quay lệch. Que người là 7 động tác cơ thể; nghỉ mắt dùng SVG mắt riêng vì que người không có mặt. Màn nghỉ **luôn có lối thoát** (Esc + nút) và có lưới đỡ trong `broadcast()`: không còn nghỉ mà overlay còn hiện thì đóng ngay — một cửa sổ che kín màn hình mà kẹt lại là hỏng nặng nhất. Bẫy đo lường: động tác có đoạn "giữ" dài (gập lưng) mà lấy mẫu góc trong cửa sổ **ngắn** dễ rơi trúng đoạn giữ → tưởng đứng im; phải lấy mẫu trọn một chu kỳ. Tôn trọng `prefers-reduced-motion` (hình đứng yên).
 
 ## Trạng thái
 
-Đủ **8/8 hạng mục MVP** trong [PLAN.md](PLAN.md) — Sprint 0 đến Sprint 2 đã xong. **205 unit test đạt** (157 engine + 48 hàm tách khỏi main).
+Đủ **8/8 hạng mục MVP** trong [PLAN.md](PLAN.md) — Sprint 0 đến Sprint 2 đã xong. **234 unit test đạt** (186 engine + 48 hàm tách khỏi main).
 
 Đã kiểm chứng trên **bản cài đặt thật** (`%LOCALAPPDATA%\Programs\StandUp`): installer chạy trót lọt, tạo đủ shortcut Desktop + Start Menu, shortcut mang đúng AppUserModelID `vn.standup.app`. Bật "khởi động cùng Windows" ghi đúng khoá registry `vn.standup.app = "…\StandUp.exe" --hidden`; tắt thì gỡ sạch.
 
@@ -102,6 +105,7 @@ Nguyên tắc kiến trúc: **toàn bộ logic nghiệp vụ nằm trong `engine
 - Nhật ký sự kiện luôn bật `standup.log` (`7e05eed`) + bắt mọi sự cố ngoài dự tính vào log thay cho hộp thoại lỗi (`99c37c9`).
 - Tự hoãn lời nhắc bị phớt lờ quá 3' để app không kẹt ở màn nhắc rồi im luôn (`99c37c9`).
 - Nhường toàn màn hình khi xem phim/chơi game/trình chiếu, kèm công tắc bật/tắt (`56b263b`, `19e839b`).
+- **Màn nghỉ che màn hình kèm hình giãn cơ** (kéo sớm từ v1.1): mỗi lần nghỉ một trong 8 động tác + hình động vẽ bằng SVG/CSS, có công tắc tắt, thoát bằng Esc.
 
 Còn lại trước khi phát hành 1.0:
 
@@ -111,6 +115,6 @@ Còn lại trước khi phát hành 1.0:
 ## Bản 1.1 (sau MVP)
 
 - [x] ~~Chế độ Không làm phiền tự động (phát hiện fullscreen/thuyết trình)~~ — **đã làm sớm trong 1.0**, bật/tắt được. Chưa gồm phát hiện gọi video **cửa sổ** (Zoom/Meet không full-screen) — chỗ này Windows không báo bận.
-- [ ] Overlay nghỉ toàn màn hình kèm gợi ý giãn cơ
+- [x] ~~Overlay nghỉ toàn màn hình kèm gợi ý giãn cơ~~ — **đã làm sớm trong 1.0**: màn nghỉ che màn hình, 8 động tác giãn cơ + hình động (SVG/CSS), bật/tắt được, thoát bằng Esc.
 - [ ] Lịch làm việc theo khung giờ và ngày trong tuần
 - [ ] Thống kê ngày/tuần, tỉ lệ tuân thủ

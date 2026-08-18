@@ -4,7 +4,7 @@
 const assert = require('node:assert');
 const {
   Engine, clampSettings, DEFAULT_SETTINGS, REMIND_MESSAGES, BREAK_OVER_MESSAGES,
-  IGNORED_RENAG_SECS,
+  IGNORED_RENAG_SECS, STRETCH_IDEAS,
 } = require('../electron/engine');
 
 // Mặc định test: tắt âm để đếm effect cho gọn; các test âm thanh bật riêng.
@@ -408,6 +408,11 @@ check('mặc định deferFullscreen BẬT', DEFAULT_SETTINGS.deferFullscreen ==
 check('deferFullscreen tắt được (false giữ nguyên)', c({ deferFullscreen: false }).deferFullscreen === false);
 check('deferFullscreen sai kiểu (chuỗi "false") → về mặc định true', c({ deferFullscreen: 'false' }).deferFullscreen === true);
 check('file cũ thiếu deferFullscreen → mặc định BẬT', c({ intervalMins: 30 }).deferFullscreen === true);
+// breakOverlay: mặc định BẬT (giờ nghỉ che màn hình kèm động tác); tắt được.
+check('mặc định breakOverlay BẬT', DEFAULT_SETTINGS.breakOverlay === true);
+check('breakOverlay tắt được (false giữ nguyên)', c({ breakOverlay: false }).breakOverlay === false);
+check('breakOverlay sai kiểu (chuỗi "false") → về mặc định true', c({ breakOverlay: 'false' }).breakOverlay === true);
+check('file cũ thiếu breakOverlay → mặc định BẬT', c({ intervalMins: 30 }).breakOverlay === true);
 
 console.log('8c. Âm thanh — chỉ phát khi người dùng bật');
 b = new Engine({ ...S, sound: true }, t);
@@ -502,5 +507,109 @@ for (let s = 0; s < 8 * 3600; s++) {
 }
 check('8 giờ với idle xen kẽ: không kẹt, không crash', ok);
 check('kết thúc ở trạng thái hợp lệ', VALID.includes(b.phase));
+
+console.log('12. Màn nghỉ che màn hình + động tác giãn cơ');
+const SO = { ...S, breakOverlay: true };
+// --- Bật: vào nghỉ thì mở màn nghỉ, dẹp cửa sổ nhắc nhỏ ---
+b = new Engine(SO, t);
+run(b, 45 * 60 + 1);
+fx = b.takeBreak(t);
+check('bật overlay: bấm "Nghỉ ngay" → mở màn nghỉ', has(fx, 'openOverlay'));
+check('bật overlay: đóng luôn cửa sổ nhắc nhỏ (không hai cửa sổ cùng đếm)', has(fx, 'closeReminder'));
+check('vào nghỉ là có sẵn động tác', b.stretch !== null && typeof b.stretch.name === 'string');
+check('động tác có đủ icon + tên + hướng dẫn',
+  !!b.stretch.icon && !!b.stretch.name && b.stretch.text.length > 10);
+check('trạng thái phát ra kèm động tác (để màn nghỉ vẽ)',
+  b.status(t, 0).stretch.name === b.stretch.name);
+
+// --- Mọi lối ra khỏi giờ nghỉ đều phải đóng màn nghỉ ---
+fx = run(b, 5 * 60 + 1);
+check('hết giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+check('hết giờ nghỉ vẫn báo toast như cũ', has(fx, 'notify'));
+
+b = new Engine(SO, t);
+b.breakNow(t);
+fx = b.skip(t);
+check('bấm "Làm việc tiếp" giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+
+b = new Engine(SO, t);
+b.breakNow(t);
+fx = b.pause(t, 60);
+check('tạm dừng giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+
+b = new Engine(SO, t);
+b.breakNow(t);
+fx = b.tick((t += 10 * 60 * 1000), 0); // máy ngủ 10 phút giữa giờ nghỉ
+check('máy ngủ dậy giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+check('ngủ dậy thì về chu kỳ mới', b.phase === 'working');
+
+// --- "Nghỉ ngay" từ menu tray ---
+b = new Engine(SO, t);
+fx = b.breakNow(t);
+check('tray "Nghỉ ngay" (bật overlay) → mở màn nghỉ', has(fx, 'openOverlay'));
+check('tray "Nghỉ ngay" (bật overlay) → KHÔNG mở cửa sổ nhắc nhỏ', !has(fx, 'openReminder'));
+
+// --- Tắt overlay: giữ nguyên nếp cũ ---
+b = new Engine({ ...S, breakOverlay: false }, t);
+run(b, 45 * 60 + 1);
+fx = b.takeBreak(t);
+check('tắt overlay: KHÔNG mở màn nghỉ', !has(fx, 'openOverlay'));
+check('tắt overlay: giữ cửa sổ nhắc để nó tự đếm giờ nghỉ', !has(fx, 'closeReminder'));
+fx = b.breakNow(t);
+check('tắt overlay: tray "Nghỉ ngay" vẫn mở cửa sổ nhắc như cũ', has(fx, 'openReminder'));
+
+// --- Màn nghỉ chỉ được mở khi thật sự đang nghỉ ---
+b = new Engine(SO, t);
+fx = run(b, 45 * 60 + 1);
+check('lúc nhắc (chưa nghỉ) KHÔNG mở màn nghỉ', !has(fx, 'openOverlay') && b.phase === 'reminding');
+fx = b.snooze(t);
+check('bấm "Hoãn" cũng không mở màn nghỉ', !has(fx, 'openOverlay'));
+
+// --- Xoay vòng động tác: không lặp trước khi dùng hết bộ ---
+b = new Engine(SO, t);
+const seen = [];
+for (let i = 0; i < STRETCH_IDEAS.length; i++) {
+  b.breakNow(t);
+  seen.push(b.stretch.name);
+  b.skip(t);
+}
+check(`${STRETCH_IDEAS.length} lần nghỉ đầu: ${STRETCH_IDEAS.length} động tác KHÁC nhau`,
+  new Set(seen).size === STRETCH_IDEAS.length);
+b.breakNow(t);
+check('hết bộ thì quay lại động tác đầu', b.stretch.name === seen[0]);
+check('bộ động tác đủ nhiều để không nhàm (>= 6)', STRETCH_IDEAS.length >= 6);
+
+// --- Bất biến quan trọng nhất: màn nghỉ không bao giờ bị kẹt lại ---
+// Một cửa sổ che kín màn hình mà kẹt thì người dùng coi như mất máy, nên chạy
+// dài 8 tiếng và soi: số lần mở phải luôn khớp số lần đóng.
+b = new Engine(SO, t);
+let opens = 0; let closes = 0;
+for (let sec = 0; sec < 8 * 3600; sec++) {
+  const out = b.tick((t += 1000), 0);
+  opens += count(out, 'openOverlay');
+  closes += count(out, 'closeOverlay');
+  if (b.phase === 'reminding') {
+    const a = b.takeBreak(t);
+    opens += count(a, 'openOverlay');
+    closes += count(a, 'closeOverlay');
+  }
+}
+check(`8 giờ liên tục: mở màn nghỉ ${opens} lần, đóng ${closes} lần — khớp nhau, không kẹt`,
+  opens > 0 && opens === closes);
+check('kết thúc 8 giờ không mắc kẹt ở giờ nghỉ', b.phase !== 'breaking');
+
+console.log('12b. Mỗi động tác giãn cơ có hình hợp lệ để màn nghỉ vẽ');
+// Overlay biết vẽ đúng 8 kiểu này (7 hình que + 1 hình mắt). Một khoá anim gõ
+// sai (vd 'shoudlers') sẽ khiến overlay lặng lẽ lùi về emoji — test này chặn
+// đúng lớp lỗi đó ngay từ dữ liệu engine.
+const KNOWN_ANIMS = new Set(['shoulders', 'neck', 'reach', 'bend', 'wrist', 'eyes', 'walk', 'calf']);
+let stretchesOk = true, allHaveAnim = true;
+for (const s of STRETCH_IDEAS) {
+  if (!s.icon || !s.name || !(s.text && s.text.length > 10)) stretchesOk = false;
+  if (!s.anim) allHaveAnim = false;
+  else if (!KNOWN_ANIMS.has(s.anim)) stretchesOk = false;
+}
+check('mọi động tác đủ icon + tên + hướng dẫn (>10 ký tự)', stretchesOk);
+check('cả 8 động tác đều có anim thuộc bộ overlay biết vẽ', allHaveAnim && STRETCH_IDEAS.length === 8);
 
 console.log(`\nTẤT CẢ ${passed} KIỂM TRA ĐỀU ĐẠT ✅`);

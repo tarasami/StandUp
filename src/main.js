@@ -32,6 +32,7 @@ function syncForm(s) {
   set('in-sound', s.sound, 'checked');
   set('in-autostart', s.autoStart, 'checked');
   set('in-defer-fullscreen', s.deferFullscreen, 'checked');
+  set('in-break-overlay', s.breakOverlay, 'checked');
 }
 
 function render(st) {
@@ -97,6 +98,7 @@ $('btn-save').addEventListener('click', async () => {
     sound: $('in-sound').checked,
     autoStart: $('in-autostart').checked,
     deferFullscreen: $('in-defer-fullscreen').checked,
+    breakOverlay: $('in-break-overlay').checked,
   });
   // Bỏ focus trước khi đồng bộ, nếu không ô đang focus sẽ không nhận giá trị
   // đã được kẹp về biên (ví dụ gõ 999 → lưu thành 240).

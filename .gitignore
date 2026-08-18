@@ -9,3 +9,6 @@ out/
 
 # Cấu hình cục bộ của máy (danh sách lệnh được phép) — không đẩy lên repo
 .claude/settings.local.json
+
+# Hồ sơ chạy thử bản dev (tách khỏi bản đã cài) — chỉ có trên máy
+.dev-profile/

@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   autoStart: true,
   reminderPosition: 'bottom-right',
   deferFullscreen: true, // hoãn lời nhắc khi đang toàn màn hình (phim/game/trình chiếu)
+  breakOverlay: true,    // giờ nghỉ che màn hình kèm một động tác giãn cơ
   onboarded: false,
 };
 
@@ -52,6 +53,7 @@ function clampSettings(raw) {
     autoStart: bool(raw?.autoStart, DEFAULT_SETTINGS.autoStart),
     reminderPosition: oneOf(raw?.reminderPosition, REMINDER_POSITIONS, DEFAULT_SETTINGS.reminderPosition),
     deferFullscreen: bool(raw?.deferFullscreen, DEFAULT_SETTINGS.deferFullscreen),
+    breakOverlay: bool(raw?.breakOverlay, DEFAULT_SETTINGS.breakOverlay),
     onboarded: bool(raw?.onboarded, DEFAULT_SETTINGS.onboarded),
   };
 }
@@ -78,6 +80,22 @@ const BREAK_OVER_MESSAGES = [
   { title: 'Quay lại nhé 🚀', body: 'Hết giờ nghỉ. Chúc bạn một phiên tập trung thật tốt.' },
   { title: 'Sẵn sàng chưa? ✨', body: 'Giờ nghỉ kết thúc. Cơ thể đã được nạp lại năng lượng.' },
   { title: 'Tiếp tục thôi 💼', body: 'Nghỉ đủ rồi, mình làm tiếp nào.' },
+];
+
+// Giờ nghỉ mà chỉ đếm ngược thì rất dễ ngồi ì nhìn con số chạy rồi quay lại làm —
+// đúng thứ khiến "đã nghỉ" không thành "đã vận động". Mỗi lần nghỉ đưa ra MỘT
+// động tác cụ thể, đủ ngắn để làm ngay tại chỗ. Xoay vòng tuần tự như bộ câu nhắc
+// nên không lặp lại trước khi dùng hết bộ. Cố ý giữ mức phổ thông, không động tác
+// mạnh và không hứa hẹn gì về y khoa.
+const STRETCH_IDEAS = [
+  { icon: '🙆', name: 'Xoay vai', anim: 'shoulders', text: 'Xoay vai ra sau 10 vòng, rồi ra trước 10 vòng. Thả lỏng hai tay, đừng gồng.' },
+  { icon: '🦒', name: 'Duỗi cổ', anim: 'neck', text: 'Nghiêng đầu sang phải, giữ 15 giây rồi đổi bên. Giữ vai yên, chỉ nghiêng cổ.' },
+  { icon: '🙌', name: 'Vươn người', anim: 'reach', text: 'Đan hai tay, đẩy thẳng lên trần nhà và hít sâu. Giữ 15 giây rồi thở ra.' },
+  { icon: '🤸', name: 'Gập lưng', anim: 'bend', text: 'Đứng thẳng, từ từ cúi người xuống chạm mũi chân. Cong gối nhẹ nếu thấy căng.' },
+  { icon: '🖐️', name: 'Giãn cổ tay', anim: 'wrist', text: 'Duỗi thẳng một tay, kéo nhẹ các ngón về phía mình. 15 giây mỗi bên.' },
+  { icon: '👀', name: 'Cho mắt nghỉ', anim: 'eyes', text: 'Nhìn ra xa chừng 6 mét trong 20 giây. Chớp mắt vài cái cho đỡ khô.' },
+  { icon: '🚶', name: 'Đi vài bước', anim: 'walk', text: 'Rời ghế, đi một vòng quanh phòng. Tiện tay lấy cốc nước thì càng tốt.' },
+  { icon: '🦵', name: 'Nhón chân', anim: 'calf', text: 'Đứng thẳng, nhón gót lên rồi hạ xuống 15 lần cho máu chân lưu thông.' },
 ];
 
 const SNOOZE_MINS = 5;
@@ -107,6 +125,8 @@ class Engine {
     this.breakMsgIndex = 0;
     this.message = null; // lời nhắc đang hiển thị, để cửa sổ nhắc dùng chung
     this.remindingSince = 0; // mốc vào 'reminding', để biết bị phớt lờ quá lâu chưa
+    this.stretchIndex = 0;
+    this.stretch = null; // động tác giãn cơ của giờ nghỉ đang diễn ra
   }
 
   intervalMs() { return this.settings.intervalMins * 60_000; }
@@ -145,6 +165,7 @@ class Engine {
       idleSecs,
       settings: { ...this.settings },
       message: this.message,
+      stretch: this.stretch,
     };
   }
 
@@ -162,7 +183,7 @@ class Engine {
     // Máy sleep/hibernate đủ lâu = người dùng đã rời máy = đã nghỉ.
     if (gapSecs >= SLEEP_GAP_SECS && gapSecs >= this.idleThresholdSecs() && this.phase !== PHASE.PAUSED) {
       if (this.phase === PHASE.REMINDING || this.phase === PHASE.BREAKING) {
-        fx.push({ type: 'closeReminder' });
+        fx.push({ type: 'closeReminder' }, { type: 'closeOverlay' });
       }
       this.newCycle(now);
       return fx;
@@ -214,6 +235,7 @@ class Engine {
           this.breakMsgIndex += 1;
           fx.push(
             { type: 'closeReminder' },
+            { type: 'closeOverlay' },
             { type: 'notify', title: m.title, body: m.body },
           );
           if (this.settings.sound) fx.push({ type: 'sound', kind: 'breakOver' });
@@ -257,12 +279,24 @@ class Engine {
   // Ba hàm dưới đây đều xoá pauseUntil: chúng ứng với việc người dùng CHỦ ĐỘNG
   // hưởng ứng lời nhắc (nghỉ / hoãn), nên trạng thái tạm dừng cũ coi như bỏ.
   // Riêng skip() thì không — xem giải thích ở đó.
+  // Mỗi lần vào giờ nghỉ lấy động tác kế tiếp trong bộ.
+  pickStretch() {
+    this.stretch = STRETCH_IDEAS[this.stretchIndex % STRETCH_IDEAS.length];
+    this.stretchIndex += 1;
+  }
+
   takeBreak(now) {
     if (this.phase !== PHASE.REMINDING) return [];
     this.phase = PHASE.BREAKING;
     this.deadline = now + this.breakMs();
     this.pauseUntil = undefined;
-    return []; // cửa sổ nhắc giữ nguyên, tự chuyển sang giao diện đếm giờ nghỉ
+    this.pickStretch();
+    // Bật overlay: nhường chỗ cho màn nghỉ che toàn màn hình, nên dẹp cửa sổ nhắc
+    // nhỏ đi kẻo hai cửa sổ cùng đếm một giờ nghỉ. Tắt overlay: giữ nguyên nếp cũ
+    // — cửa sổ nhắc tự chuyển sang mặt đếm giờ nghỉ, không cần effect nào.
+    return this.settings.breakOverlay
+      ? [{ type: 'closeReminder' }, { type: 'openOverlay' }]
+      : [];
   }
 
   snooze(now) {
@@ -281,17 +315,20 @@ class Engine {
     // dừng cũ — chứ không âm thầm cho chạy lại sau lưng người dùng.
     if (this.pauseUntil !== undefined) {
       this.phase = PHASE.PAUSED;
-      return [{ type: 'closeReminder' }];
+      return [{ type: 'closeReminder' }, { type: 'closeOverlay' }];
     }
     this.newCycle(now);
-    return [{ type: 'closeReminder' }];
+    return [{ type: 'closeReminder' }, { type: 'closeOverlay' }];
   }
 
   breakNow(now) {
     this.phase = PHASE.BREAKING;
     this.deadline = now + this.breakMs();
     this.pauseUntil = undefined;
-    return [{ type: 'openReminder' }];
+    this.pickStretch();
+    return this.settings.breakOverlay
+      ? [{ type: 'openOverlay' }]
+      : [{ type: 'openReminder' }];
   }
 
   // "Thử nhắc nhở" là một phép THỬ, không được phá trạng thái đang có. Giữ
@@ -305,7 +342,7 @@ class Engine {
   pause(now, mins) {
     const fx = [];
     if (this.phase === PHASE.REMINDING || this.phase === PHASE.BREAKING) {
-      fx.push({ type: 'closeReminder' });
+      fx.push({ type: 'closeReminder' }, { type: 'closeOverlay' });
     }
     this.phase = PHASE.PAUSED;
     this.pauseSpanMs = mins == null ? undefined : mins * 60_000;
@@ -333,5 +370,5 @@ class Engine {
 
 module.exports = {
   Engine, PHASE, SNOOZE_MINS, IGNORED_RENAG_SECS, DEFAULT_SETTINGS, clampSettings,
-  REMIND_MESSAGES, BREAK_OVER_MESSAGES, REMINDER_POSITIONS,
+  REMIND_MESSAGES, BREAK_OVER_MESSAGES, REMINDER_POSITIONS, STRETCH_IDEAS,
 };

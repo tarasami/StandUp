@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>StandUp — Giờ nghỉ</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="overlay">
+  <main class="ov-wrap">
+    <div class="ov-label">Đang nghỉ 🧘</div>
+    <div id="ov-countdown" class="ov-countdown">05:00</div>
+
+    <section class="ov-card">
+      <!-- Ba kiểu hình minh hoạ giãn cơ, vẽ bằng SVG/CSS (mỗi hình vài KB):
+           - ov-fig: hình que, dùng cho 7 động tác cơ thể (JS gắn class fig-<anim>).
+           - ov-eyes: hình mắt riêng, dùng cho động tác nghỉ mắt (que người không
+             có mặt nên không diễn tả được "nhìn ra xa").
+           - ov-icon: emoji, đường lùi an toàn nếu động tác chưa có hình.
+           JS chỉ hiện một trong ba. -->
+      <svg id="ov-fig" class="ov-fig" viewBox="0 0 200 210" aria-hidden="true">
+        <g class="body">
+          <g class="upper">
+            <g class="p-headneck"><circle class="head" cx="100" cy="46" r="17"/><line x1="100" y1="63" x2="100" y2="76"/></g>
+            <line x1="72" y1="88" x2="128" y2="88"/>
+            <line x1="100" y1="76" x2="100" y2="140"/>
+            <line class="arm arm-l" x1="72" y1="88" x2="66" y2="126"/>
+            <line class="arm arm-r" x1="128" y1="88" x2="134" y2="126"/>
+            <line class="hand hand-l" x1="66" y1="126" x2="58" y2="140"/>
+            <line class="hand hand-r" x1="134" y1="126" x2="142" y2="140"/>
+          </g>
+          <line class="leg leg-l" x1="100" y1="140" x2="84" y2="188"/>
+          <line class="leg leg-r" x1="100" y1="140" x2="116" y2="188"/>
+        </g>
+      </svg>
+      <svg id="ov-eyes" class="ov-eyes" viewBox="0 0 200 130" aria-hidden="true">
+        <circle class="eyeball" cx="68" cy="64" r="30"/>
+        <circle class="eyeball" cx="132" cy="64" r="30"/>
+        <circle class="pupil" cx="68" cy="64" r="10"/>
+        <circle class="pupil" cx="132" cy="64" r="10"/>
+      </svg>
+      <div id="ov-icon" class="ov-icon">🙆</div>
+
+      <h2 id="ov-name" class="ov-name">Xoay vai</h2>
+      <p id="ov-text" class="ov-text">Xoay vai ra sau 10 vòng, rồi ra trước 10 vòng.</p>
+    </section>
+
+    <button id="ov-skip" class="btn ov-skip">Làm việc tiếp</button>
+    <div class="ov-hint">hoặc nhấn <kbd>Esc</kbd> để quay lại làm việc</div>
+  </main>
+
+  <script src="overlay.js"></script>
+</body>
+</html>
