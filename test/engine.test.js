@@ -403,6 +403,11 @@ check('null → về mặc định', c({ onboarded: null }).onboarded === false)
 check('onboarded=true được giữ (không bắt xem lại onboarding)', c({ onboarded: true }).onboarded === true);
 check('file cũ (thiếu trường mới) vẫn nạp được, điền mặc định',
   c({ intervalMins: 30, breakMins: 5, idleMins: 5 }).sound === true);
+// deferFullscreen: mặc định BẬT (hoãn khi full màn hình); tắt được; rác → mặc định.
+check('mặc định deferFullscreen BẬT', DEFAULT_SETTINGS.deferFullscreen === true);
+check('deferFullscreen tắt được (false giữ nguyên)', c({ deferFullscreen: false }).deferFullscreen === false);
+check('deferFullscreen sai kiểu (chuỗi "false") → về mặc định true', c({ deferFullscreen: 'false' }).deferFullscreen === true);
+check('file cũ thiếu deferFullscreen → mặc định BẬT', c({ intervalMins: 30 }).deferFullscreen === true);
 
 console.log('8c. Âm thanh — chỉ phát khi người dùng bật');
 b = new Engine({ ...S, sound: true }, t);

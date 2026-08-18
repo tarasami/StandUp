@@ -183,7 +183,7 @@ function applyAutoStart(enabled) {
 // khuất + sinh thanh cuộn.
 const HEIGHTS = {
   compact: 384, // đóng — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
-  full: 750,    // mở cài đặt — nội dung 697px
+  full: 800,    // mở cài đặt — nội dung ~742px (thêm ô "ẩn khi full màn hình")
 };
 
 function createWindows() {
@@ -571,14 +571,19 @@ function idleSecs() {
 function tick() {
   const now = Date.now();
   const idle = idleSecs();
-  // Chỉ hỏi Windows khi lời nhắc SẮP tới hoặc đang quá hạn chờ — lúc bình thường
-  // khỏi hỏi cho nhẹ. refreshNotifyAllowed tự tiết lưu nên gọi mỗi tick vô hại.
   const pre = engine.status(now, idle);
-  if (pre.phase === 'working' && pre.remainingSecs <= DND_APPROACH_SECS) {
+  // Chỉ hỏi Windows khi tính năng "ẩn khi full màn hình" đang BẬT và lời nhắc sắp
+  // tới (hoặc đang quá hạn chờ) — tắt tính năng thì khỏi hỏi, khỏi spawn gì.
+  // refreshNotifyAllowed tự tiết lưu nên gọi mỗi tick vô hại.
+  if (engine.settings.deferFullscreen && pre.phase === 'working' && pre.remainingSecs <= DND_APPROACH_SECS) {
     refreshNotifyAllowed();
   }
-  debugLog(`${engine.phase}\tidle=${idle}\tnguong=${engine.idleThresholdSecs()}\tnhac_duoc=${notifyAllowed}`);
-  applyEffects(engine.tick(now, idle, notifyAllowed));
+  // Tắt tính năng → LUÔN cho nhắc (kể cả full màn hình); bật → theo trạng thái
+  // Windows. Bao giờ notifyAllowed cũng bắt đầu là true nên tắt tính năng là về
+  // đúng hành vi cũ, không phụ thuộc lần hỏi gần nhất.
+  const canNotify = engine.settings.deferFullscreen ? notifyAllowed : true;
+  debugLog(`${engine.phase}\tidle=${idle}\tnguong=${engine.idleThresholdSecs()}\tnhac_duoc=${canNotify}\tan_full=${engine.settings.deferFullscreen}`);
+  applyEffects(engine.tick(now, idle, canNotify));
   broadcast();
 }
 
@@ -602,7 +607,7 @@ function wireIpc() {
     engine.updateSettings(Date.now(), s);
     saveSettings(s);
     applyAutoStart(s.autoStart);
-    logEvent('info', `Đổi cài đặt — chu kỳ=${s.intervalMins}', nghỉ=${s.breakMins}', rời máy=${s.idleMins}', âm=${s.sound}, tự khởi động=${s.autoStart}, vị trí nhắc=${s.reminderPosition}`);
+    logEvent('info', `Đổi cài đặt — chu kỳ=${s.intervalMins}', nghỉ=${s.breakMins}', rời máy=${s.idleMins}', âm=${s.sound}, tự khởi động=${s.autoStart}, vị trí nhắc=${s.reminderPosition}, ẩn khi full=${s.deferFullscreen}`);
     broadcast();
     return s;
   });
@@ -683,7 +688,7 @@ if (!app.requestSingleInstanceLock()) {
 
     engine = new Engine(loadSettings(), Date.now());
     const cfg = engine.settings;
-    logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, onboarded=${cfg.onboarded}`);
+    logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, ẩn khi full=${cfg.deferFullscreen}, onboarded=${cfg.onboarded}`);
     // Mục khởi động có thể biến mất ngoài tầm kiểm soát của app — uninstaller
     // của bản cũ xoá nó khi cài đè là trường hợp đã gặp thật. App lại chỉ ghi
     // mục này lúc người dùng bấm Lưu, nên giao diện cứ tick "Khởi động cùng

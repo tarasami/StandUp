@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
   sound: true,
   autoStart: true,
   reminderPosition: 'bottom-right',
+  deferFullscreen: true, // hoãn lời nhắc khi đang toàn màn hình (phim/game/trình chiếu)
   onboarded: false,
 };
 
@@ -50,6 +51,7 @@ function clampSettings(raw) {
     sound: bool(raw?.sound, DEFAULT_SETTINGS.sound),
     autoStart: bool(raw?.autoStart, DEFAULT_SETTINGS.autoStart),
     reminderPosition: oneOf(raw?.reminderPosition, REMINDER_POSITIONS, DEFAULT_SETTINGS.reminderPosition),
+    deferFullscreen: bool(raw?.deferFullscreen, DEFAULT_SETTINGS.deferFullscreen),
     onboarded: bool(raw?.onboarded, DEFAULT_SETTINGS.onboarded),
   };
 }

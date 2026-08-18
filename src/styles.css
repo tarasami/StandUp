@@ -153,6 +153,10 @@ label.check input[type='checkbox'] {
   flex: none;
 }
 label.check em { color: var(--muted); font-style: normal; font-size: 11.5px; }
+/* Ô có chú thích xuống dòng: canh checkbox theo dòng đầu, chú thích mờ ở dưới. */
+label.check.stack { align-items: flex-start; }
+label.check.stack input[type='checkbox'] { margin-top: 1px; }
+label.check em.sub { display: block; margin-top: 3px; line-height: 1.45; }
 
 /* ============ Onboarding ============ */
 
