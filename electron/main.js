@@ -91,6 +91,39 @@ function logEvent(level, message) {
   } catch { /* nhật ký hỏng KHÔNG được làm chết app */ }
 }
 
+// ---- Bắt sự cố ngoài dự tính vào nhật ký ----
+// Nhật ký ở trên chỉ ghi các sự kiện CÓ TRẬT TỰ. Nhưng thứ cần nhất khi "app tự
+// nhiên hỏng" lại là những cú ngã ngoài dự tính: lỗi không bắt trong main
+// process, promise bị bỏ rơi, hay renderer (nơi phát âm báo + vẽ cửa sổ) chết —
+// không bắt thì chúng biến mất không dấu vết. Ở đây CHỦ ĐÍCH ghi log rồi cố giữ
+// app sống tiếp: đây là app chạy nền trong tray, thà nhắc tiếp còn hơn tự tắt vì
+// một lỗi thoáng qua. Đánh đổi: đăng ký uncaughtException khiến hộp thoại lỗi
+// mặc định của Electron im đi — nhưng một hộp thoại "JavaScript error" nhiện lên
+// giữa màn hình còn tệ hơn cho app nền; ta đổi nó lấy một dòng trong standup.log.
+function installCrashLogging() {
+  process.on('uncaughtException', (err, origin) => {
+    logEvent('error', `Lỗi không bắt (${origin}): ${err && err.stack ? err.stack : err}`);
+  });
+  process.on('unhandledRejection', (reason) => {
+    logEvent('error', `Promise bị bỏ rơi: ${reason && reason.stack ? reason.stack : reason}`);
+  });
+  // Một handler ở tầng app bắt được renderer của MỌI cửa sổ. Renderer cửa sổ
+  // chính chết = mất âm báo + mất popup nhắc — đúng lớp lỗi "thông báo biến mất".
+  app.on('render-process-gone', (_ev, contents, details) => {
+    const which = mainWin && contents === mainWin.webContents ? 'cửa sổ chính'
+      : reminderWin && contents === reminderWin.webContents ? 'cửa sổ nhắc'
+      : onboardWin && contents === onboardWin.webContents ? 'onboarding'
+      : 'renderer';
+    logEvent('error', `Renderer chết — ${which}: lý do=${details.reason}, mã thoát=${details.exitCode}`);
+  });
+  // Tiến trình con (GPU, tiện ích…) chết: thường vô hại, nhưng GPU chết có thể
+  // làm mất hình/âm nên vẫn ghi lại để đối chiếu khi có sự cố.
+  app.on('child-process-gone', (_ev, details) => {
+    const name = details.name ? ` ${details.name}` : '';
+    logEvent('error', `Tiến trình con chết — ${details.type}${name}: lý do=${details.reason}, mã thoát=${details.exitCode}`);
+  });
+}
+
 // Đăng ký AUMID qua registry để toast hiện banner ổn định. Shortcut Start Menu
 // (cơ chế cổ điển mà installer tạo) không đủ tin cậy: đã kiểm chứng trên máy
 // thật trường hợp toast chỉ vào Action Center mà không bật banner cho tới khi
@@ -354,7 +387,7 @@ function createTray() {
     { label: 'Mở StandUp', click: showMain },
     { type: 'separator' },
     { label: 'Nghỉ ngay', click: () => userAction('Nghỉ ngay (menu)', () => engine.breakNow(Date.now())) },
-    { label: 'Thử nhắc nhở', click: () => userAction('Thử nhắc (menu)', () => engine.triggerReminder()) },
+    { label: 'Thử nhắc nhở', click: () => userAction('Thử nhắc (menu)', () => engine.triggerReminder(Date.now())) },
     { type: 'separator' },
     { label: 'Tạm dừng 1 giờ', click: () => userAction('Tạm dừng 1 giờ', () => engine.pause(Date.now(), 60)) },
     { label: 'Tạm dừng (đến khi bật lại)', click: () => userAction('Tạm dừng đến khi bật lại', () => engine.pause(Date.now(), null)) },
@@ -459,7 +492,9 @@ function logPhaseChange() {
   const detail = {
     reminding: engine.message ? ` — "${engine.message.title}"` : '',
     breaking: ` — nghỉ ${s.breakMins} phút`,
-    working: ` — chu kỳ ${s.intervalMins} phút`,
+    // Thời gian còn lại THẬT tới lần nhắc kế — đúng cho cả chu kỳ đầy đủ (~45'),
+    // hoãn tay và tự-hoãn (~5'). Ghi "chu kỳ 45 phút" cứng sẽ nói dối lúc hoãn.
+    working: ` — còn ~${Math.max(1, Math.round((engine.deadline - Date.now()) / 60_000))} phút tới lần nhắc`,
     idle: ' — người dùng rời máy',
     paused: engine.pauseUntil == null ? ' — đến khi bật lại' : ' — có hẹn giờ',
   }[engine.phase] || '';
@@ -533,7 +568,7 @@ function wireIpc() {
       snooze: ['Hoãn 5 phút', () => engine.snooze(now)],
       skip: ['Bỏ qua', () => engine.skip(now)],
       breakNow: ['Nghỉ ngay', () => engine.breakNow(now)],
-      test: ['Thử nhắc', () => engine.triggerReminder()],
+      test: ['Thử nhắc', () => engine.triggerReminder(now)],
       pauseIndef: ['Tạm dừng đến khi bật lại', () => engine.pause(now, null)],
       pause1h: ['Tạm dừng 1 giờ', () => engine.pause(now, 60)],
       resume: ['Tiếp tục', () => engine.resume(now)],
@@ -554,6 +589,10 @@ function wireIpc() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  // Cắm bắt-sự-cố NGAY từ đầu — trước cả khi dựng cửa sổ — để lỗi lúc khởi động
+  // cũng vào được nhật ký.
+  installCrashLogging();
+
   // Âm báo được tổng hợp bằng Web Audio, không do người dùng bấm nút — Chromium
   // chặn phát tự động nếu thiếu switch này.
   app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');

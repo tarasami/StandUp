@@ -4,6 +4,7 @@
 const assert = require('node:assert');
 const {
   Engine, clampSettings, DEFAULT_SETTINGS, REMIND_MESSAGES, BREAK_OVER_MESSAGES,
+  IGNORED_RENAG_SECS,
 } = require('../electron/engine');
 
 // Mặc định test: tắt âm để đếm effect cho gọn; các test âm thanh bật riêng.
@@ -81,7 +82,7 @@ check('cửa sổ nhắc tự đóng, không để treo trên màn hình', has(f
 
 console.log('3d. Rời máy trong lúc đang nghỉ');
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 fx = run(b, 5 * 60 + 1, 4 * 60); // đi vắng suốt giờ nghỉ
 check('giờ nghỉ vẫn chạy hết dù người dùng đi vắng', b.phase === 'working');
@@ -100,7 +101,7 @@ check('sleep lúc đang nhắc → chu kỳ mới', b.phase === 'working');
 check('cửa sổ nhắc được dọn, không treo lại sau khi tỉnh', has(fx, 'closeReminder'));
 
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 fx = b.tick((t += 60 * 60_000), 0);
 check('sleep lúc đang nghỉ → chu kỳ mới + dọn cửa sổ', b.phase === 'working' && has(fx, 'closeReminder'));
@@ -132,7 +133,7 @@ b.tick(t, 0);
 check('tạm dừng có hẹn giờ không bị kẹt vĩnh viễn', b.status(t, 0).remainingSecs <= 60 * 60);
 
 console.log('5. Hoãn & bỏ qua');
-e.triggerReminder();
+e.triggerReminder(t);
 fx = e.snooze(t);
 check('hoãn → working, đóng cửa sổ', e.phase === 'working' && has(fx, 'closeReminder'));
 check('hoãn đúng 5 phút', e.status(t, 0).remainingSecs === 5 * 60);
@@ -146,7 +147,7 @@ check('bỏ qua → chu kỳ mới đầy đủ', e.phase === 'working' && e.sta
 // Nút "Làm việc tiếp" ở cửa sổ nghỉ cũng gọi skip() — nhánh này trước giờ chưa
 // có test, mà skip() lại vừa được thêm nhánh xử lý tạm dừng.
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 30);
 fx = b.skip(t);
@@ -176,6 +177,50 @@ for (const setup of ['working', 'idle', 'paused']) {
   check(`"Nghỉ ngay" từ ${setup} → breaking + mở cửa sổ`, b.phase === 'breaking' && has(fx, 'openReminder'));
 }
 
+console.log('5d. Lời nhắc bị phớt lờ quá lâu (vẫn ngồi máy) → tự hoãn, KHÔNG kẹt');
+// Trước đây: phớt lờ một popup khi vẫn đang hoạt động = app im lặng vĩnh viễn,
+// vì 'reminding' chỉ thoát khi người dùng bấm nút hoặc rời máy (thành idle).
+b = fresh();
+run(b, 45 * 60 + 1);
+check('đang ở reminding', b.phase === 'reminding');
+run(b, IGNORED_RENAG_SECS - 5); // sát ngưỡng, vẫn hoạt động (idle=0)
+check(`chưa tới ${IGNORED_RENAG_SECS}s: vẫn giữ nguyên cửa sổ nhắc`, b.phase === 'reminding');
+fx = run(b, 6); // vượt ngưỡng
+check('quá ngưỡng phớt lờ → tự về working, không kẹt ở reminding', b.phase === 'working');
+check('cửa sổ nhắc được đóng khi tự hoãn', has(fx, 'closeReminder'));
+check('KHÔNG bung popup mới (chỉ cuộn đi, im lặng)', !has(fx, 'openReminder'));
+check('tự hoãn = nhắc lại sau đúng 5 phút (như bấm Hoãn)',
+  b.status(t, 0).remainingSecs > 4 * 60 && b.status(t, 0).remainingSecs <= 5 * 60);
+run(b, 5 * 60 + 1);
+check('sau khi tự hoãn, 5 phút sau nhắc lại bình thường', b.phase === 'reminding');
+
+// Rời máy được ƯU TIÊN hơn tự-hoãn: đứng dậy đi thì thành idle chứ không phải
+// working — không được nhầm "đã nghỉ" thành "hoãn để nhắc lại".
+b = fresh();
+run(b, 45 * 60 + 1);
+fx = run(b, 1, 5 * 60); // idle vọt lên ngay khi vừa vào reminding
+check('vừa vào reminding đã rời máy → idle (không nhầm thành tự hoãn)', b.phase === 'idle');
+
+// Hồi quy song sinh với skip(): lời nhắc THỬ bắn giữa lúc tạm dừng rồi bị bỏ mặc
+// quá lâu → phải QUAY LẠI tạm dừng, không âm thầm cho chạy tiếp.
+b = fresh();
+b.pause(t, null);
+b.triggerReminder(t);
+check('thử nhắc lúc tạm dừng: đang hiện cửa sổ nhắc', b.phase === 'reminding');
+fx = run(b, IGNORED_RENAG_SECS + 2);
+check('bỏ mặc lời nhắc thử quá lâu → quay lại tạm dừng, KHÔNG tự chạy', b.phase === 'paused');
+check('có đóng cửa sổ nhắc khi quay lại tạm dừng', has(fx, 'closeReminder'));
+run(b, 10 * 60);
+check('vẫn nằm im ở tạm dừng vô thời hạn', b.phase === 'paused');
+
+// Tạm dừng CÓ HẸN GIỜ cũng phải giữ nguyên mốc hẹn, không bị tự-hoãn xoá.
+b = fresh();
+b.pause(t, 60);
+b.triggerReminder(t);
+run(b, IGNORED_RENAG_SECS + 2);
+check('tạm dừng có hẹn giờ: bỏ mặc lời nhắc thử → vẫn tạm dừng, còn nguyên mốc hẹn',
+  b.phase === 'paused' && b.status(t, 0).remainingSecs > 55 * 60);
+
 console.log('6. Tạm dừng');
 b = fresh();
 b.pause(t, 60);
@@ -193,11 +238,11 @@ b.resume(t);
 check('bấm Tiếp tục → chu kỳ mới', b.phase === 'working');
 
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 fx = b.pause(t, 60);
 check('tạm dừng lúc đang nhắc → dọn cửa sổ nhắc', has(fx, 'closeReminder') && b.phase === 'paused');
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 fx = b.pause(t, 60);
 check('tạm dừng lúc đang nghỉ → dọn cửa sổ nhắc', has(fx, 'closeReminder') && b.phase === 'paused');
@@ -205,7 +250,7 @@ check('tạm dừng lúc đang nghỉ → dọn cửa sổ nhắc', has(fx, 'clo
 // là mất luôn trạng thái tạm dừng — app âm thầm chạy lại sau lưng người dùng.
 b = fresh();
 b.pause(t, null);
-b.triggerReminder();
+b.triggerReminder(t);
 check('thử nhắc lúc đang tạm dừng: cửa sổ nhắc vẫn hiện', b.phase === 'reminding');
 b.skip(t);
 check('bỏ qua lời nhắc thử → QUAY LẠI tạm dừng, không tự chạy tiếp', b.phase === 'paused');
@@ -213,7 +258,7 @@ run(b, 5 * 60);
 check('vẫn nằm im ở tạm dừng vô thời hạn sau 5 phút', b.phase === 'paused');
 b = fresh();
 b.pause(t, 60);
-b.triggerReminder();
+b.triggerReminder(t);
 b.skip(t);
 check('tạm dừng có hẹn giờ cũng được trả lại nguyên vẹn',
   b.phase === 'paused' && b.status(t, 0).remainingSecs > 59 * 60);
@@ -222,21 +267,21 @@ check('hết hạn tạm dừng thì tự chạy lại bình thường', b.phase
 // Ngược lại: hưởng ứng lời nhắc thử là chủ động, tạm dừng coi như bỏ.
 b = fresh();
 b.pause(t, null);
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 check('bấm Nghỉ ngay ở lời nhắc thử → nghỉ thật, bỏ tạm dừng', b.phase === 'breaking');
 run(b, 5 * 60 + 1);
 check('nghỉ xong về làm việc, KHÔNG quay lại tạm dừng', b.phase === 'working');
 b = fresh();
 b.pause(t, null);
-b.triggerReminder();
+b.triggerReminder(t);
 b.snooze(t);
 check('bấm Hoãn ở lời nhắc thử → hẹn lại 5 phút, bỏ tạm dừng', b.phase === 'working');
 run(b, 5 * 60 + 1);
 check('hoãn xong nhắc lại đúng hẹn', b.phase === 'reminding');
 // Đường đi bình thường (không tạm dừng) không được đổi hành vi.
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.skip(t);
 check('không tạm dừng: bỏ qua vẫn bắt đầu chu kỳ mới như cũ',
   b.phase === 'working' && b.status(t, 0).remainingSecs === 45 * 60);
@@ -257,13 +302,13 @@ b.skip(t);
 check('chu kỳ SAU mới dùng interval 60 phút', b.status(t, 0).remainingSecs === 60 * 60);
 b = fresh();
 b.updateSettings(t, { intervalMins: 45, breakMins: 10, idleMins: 5 });
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 check('đổi thời lượng nghỉ 5→10 có hiệu lực ngay lần nghỉ kế', b.status(t, 0).remainingSecs === 10 * 60);
 // Hồi quy: updateSettings từng chỉ kẹp deadline ở nhánh WORKING, nên rút ngắn
 // thời gian nghỉ lúc ĐANG nghỉ thì lượt nghỉ hiện tại vẫn chạy theo mốc cũ dài hơn.
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 60);
 b.updateSettings(t, { ...S, breakMins: 2 });
@@ -271,7 +316,7 @@ check('đang nghỉ mà rút 5→2 phút: mốc nghỉ co lại ngay', b.status(
 run(b, 2 * 60 + 1);
 check('lượt nghỉ vừa rút ngắn kết thúc đúng hạn', b.phase === 'working');
 b = fresh();
-b.triggerReminder();
+b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 60);
 b.updateSettings(t, { ...S, breakMins: 30 });
@@ -351,16 +396,16 @@ check('không câu nhắc nào trùng nhau',
 b = fresh();
 const titles = [];
 for (let i = 0; i < REMIND_MESSAGES.length; i++) {
-  b.triggerReminder();
+  b.triggerReminder(t);
   titles.push(b.status(t, 0).message.title);
   b.skip(t);
 }
 check(`${REMIND_MESSAGES.length} lần nhắc liên tiếp: KHÔNG lặp lại câu nào`,
   new Set(titles).size === REMIND_MESSAGES.length);
-b.triggerReminder();
+b.triggerReminder(t);
 check('hết bộ thì quay vòng lại câu đầu', b.status(t, 0).message.title === titles[0]);
 b = fresh({ ...S, intervalMins: 30 });
-b.triggerReminder();
+b.triggerReminder(t);
 const msg = b.status(t, 0).message;
 check('lời nhắc chèn đúng số phút đã cài (30)', msg.body.includes('30 phút'));
 check('không còn sót ký hiệu {mins} chưa thay', !msg.body.includes('{mins}'));
@@ -370,7 +415,7 @@ check('lúc nhắc CHỈ mở cửa sổ nhắc, không kèm toast Windows',
 b = fresh();
 const bTitles = [];
 for (let i = 0; i < BREAK_OVER_MESSAGES.length; i++) {
-  b.triggerReminder(); b.takeBreak(t);
+  b.triggerReminder(t); b.takeBreak(t);
   bTitles.push(run(b, 5 * 60 + 1).find((x) => x.type === 'notify').title);
 }
 check('câu báo hết giờ nghỉ cũng xoay vòng, không lặp',

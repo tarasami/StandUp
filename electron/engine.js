@@ -79,6 +79,13 @@ const BREAK_OVER_MESSAGES = [
 ];
 
 const SNOOZE_MINS = 5;
+// Lời nhắc bị phớt lờ quá lâu TRONG KHI người dùng vẫn ngồi máy (không rời đi để
+// tự chuyển sang idle) → tuyệt đối không để app kẹt ở 'reminding' và im lặng
+// vĩnh viễn: chỉ cần phớt lờ MỘT popup là coi như tắt cả app. Quá mốc này thì tự
+// hoãn như bấm "Hoãn". Đặt 3 phút: đủ để không phiền người đang dở tay, nhưng
+// vẫn kéo app ra khỏi thế kẹt. Phải > 120s vì test để engine ở 'reminding' đúng
+// 120s rồi mới thao tác tiếp.
+const IGNORED_RENAG_SECS = 180;
 // Khoảng trống giữa 2 tick vượt mức này nghĩa là máy vừa sleep/hibernate
 // (tick bình thường cách nhau 1 giây).
 const SLEEP_GAP_SECS = 90;
@@ -97,6 +104,7 @@ class Engine {
     this.remindMsgIndex = 0;
     this.breakMsgIndex = 0;
     this.message = null; // lời nhắc đang hiển thị, để cửa sổ nhắc dùng chung
+    this.remindingSince = 0; // mốc vào 'reminding', để biết bị phớt lờ quá lâu chưa
   }
 
   intervalMs() { return this.settings.intervalMins * 60_000; }
@@ -162,6 +170,7 @@ class Engine {
           this.phase = PHASE.IDLE;
         } else if (now >= this.deadline) {
           this.phase = PHASE.REMINDING;
+          this.remindingSince = now;
           fx.push(...this.remindEffects());
         }
         break;
@@ -171,6 +180,19 @@ class Engine {
         if (idleSecs >= this.idleThresholdSecs()) {
           this.phase = PHASE.IDLE;
           fx.push({ type: 'closeReminder' });
+        } else if (now - this.remindingSince >= IGNORED_RENAG_SECS * 1000) {
+          // Vẫn ngồi máy mà phớt lờ lời nhắc quá lâu: không để kẹt ở 'reminding'
+          // (sẽ im lặng mãi). Xử như bấm "Hoãn" — cuộn cửa sổ đi rồi nhắc lại
+          // sau ít phút. Riêng lời nhắc THỬ bắn ra giữa lúc đang tạm dừng
+          // (pauseUntil vẫn còn nguyên) thì trả về tạm dừng, y hệt skip() — không
+          // âm thầm cho chạy tiếp sau lưng người dùng.
+          fx.push({ type: 'closeReminder' });
+          if (this.pauseUntil !== undefined) {
+            this.phase = PHASE.PAUSED;
+          } else {
+            this.phase = PHASE.WORKING;
+            this.deadline = now + SNOOZE_MINS * 60_000;
+          }
         }
         break;
 
@@ -263,8 +285,9 @@ class Engine {
 
   // "Thử nhắc nhở" là một phép THỬ, không được phá trạng thái đang có. Giữ
   // nguyên pauseUntil để skip() biết đường trả app về lại trạng thái tạm dừng.
-  triggerReminder() {
+  triggerReminder(now) {
     this.phase = PHASE.REMINDING;
+    this.remindingSince = now;
     return this.remindEffects();
   }
 
@@ -298,6 +321,6 @@ class Engine {
 }
 
 module.exports = {
-  Engine, PHASE, SNOOZE_MINS, DEFAULT_SETTINGS, clampSettings,
+  Engine, PHASE, SNOOZE_MINS, IGNORED_RENAG_SECS, DEFAULT_SETTINGS, clampSettings,
   REMIND_MESSAGES, BREAK_OVER_MESSAGES, REMINDER_POSITIONS,
 };
