@@ -304,9 +304,9 @@ body.overlay {
 .ov-fig .leg-l, .ov-fig .leg-r, .ov-fig .upper { transform-origin: 100px 140px; } /* hông */
 .ov-fig .hand { display: none; }                          /* chỉ hiện ở động tác cổ tay */
 
-/* Xoay vai: hai tay vẽ vòng tròn đều. */
-.ov-fig.fig-shoulders .arm-l { animation: ovRollL 2.6s linear infinite; }
-.ov-fig.fig-shoulders .arm-r { animation: ovRollR 2.6s linear infinite; }
+/* Xoay vai: hai tay vẽ vòng — ra sau một vòng rồi đảo chiều ra trước (khớp lời). */
+.ov-fig.fig-shoulders .arm-l { animation: ovShoulderL 4s ease-in-out infinite; }
+.ov-fig.fig-shoulders .arm-r { animation: ovShoulderR 4s ease-in-out infinite; }
 /* Duỗi cổ: nghiêng đầu qua lại, giữ ở mỗi bên. */
 .ov-fig.fig-neck .p-headneck { animation: ovNeck 3.4s ease-in-out infinite; }
 /* Vươn người: hai tay đưa lên quá đầu, giữ, rồi hạ. */
@@ -326,6 +326,9 @@ body.overlay {
 
 @keyframes ovRollL { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes ovRollR { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+/* Xoay vai: 0→nửa chu kỳ quay hết một vòng ra sau (-360), rồi quay ngược về (ra trước). */
+@keyframes ovShoulderL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-360deg); } }
+@keyframes ovShoulderR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(360deg); } }
 @keyframes ovNeck { 0%,100% { transform: rotate(0deg); } 22%,42% { transform: rotate(-27deg); } 60%,80% { transform: rotate(27deg); } }
 @keyframes ovReachL { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(150deg); } }
 @keyframes ovReachR { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(-150deg); } }

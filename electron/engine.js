@@ -90,10 +90,10 @@ const BREAK_OVER_MESSAGES = [
 const STRETCH_IDEAS = [
   { icon: '🙆', name: 'Xoay vai', anim: 'shoulders', text: 'Xoay vai ra sau 10 vòng, rồi ra trước 10 vòng. Thả lỏng hai tay, đừng gồng.' },
   { icon: '🦒', name: 'Duỗi cổ', anim: 'neck', text: 'Nghiêng đầu sang phải, giữ 15 giây rồi đổi bên. Giữ vai yên, chỉ nghiêng cổ.' },
-  { icon: '🙌', name: 'Vươn người', anim: 'reach', text: 'Đan hai tay, đẩy thẳng lên trần nhà và hít sâu. Giữ 15 giây rồi thở ra.' },
-  { icon: '🤸', name: 'Gập lưng', anim: 'bend', text: 'Đứng thẳng, từ từ cúi người xuống chạm mũi chân. Cong gối nhẹ nếu thấy căng.' },
-  { icon: '🖐️', name: 'Giãn cổ tay', anim: 'wrist', text: 'Duỗi thẳng một tay, kéo nhẹ các ngón về phía mình. 15 giây mỗi bên.' },
-  { icon: '👀', name: 'Cho mắt nghỉ', anim: 'eyes', text: 'Nhìn ra xa chừng 6 mét trong 20 giây. Chớp mắt vài cái cho đỡ khô.' },
+  { icon: '🙌', name: 'Vươn người', anim: 'reach', text: 'Vươn thẳng hai tay lên cao hết cỡ, hít sâu. Giữ 15 giây rồi thở ra.' },
+  { icon: '🤸', name: 'Gập lưng', anim: 'bend', text: 'Từ từ gập người xuống, hai tay buông với về phía bàn chân. Cong gối nhẹ nếu căng.' },
+  { icon: '🖐️', name: 'Giãn cổ tay', anim: 'wrist', text: 'Xoay tròn hai cổ tay nhiều vòng cho mềm khớp, thả lỏng bàn tay.' },
+  { icon: '👀', name: 'Cho mắt nghỉ', anim: 'eyes', text: 'Đưa mắt nhìn ra xa, lướt chậm quanh phòng trong 20 giây cho mắt giãn.' },
   { icon: '🚶', name: 'Đi vài bước', anim: 'walk', text: 'Rời ghế, đi một vòng quanh phòng. Tiện tay lấy cốc nước thì càng tốt.' },
   { icon: '🦵', name: 'Nhón chân', anim: 'calf', text: 'Đứng thẳng, nhón gót lên rồi hạ xuống 15 lần cho máu chân lưu thông.' },
 ];
