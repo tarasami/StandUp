@@ -303,17 +303,23 @@ body.overlay {
 .ov-fig .hand-r { transform-origin: 134px 126px; }       /* cổ tay phải */
 .ov-fig .leg-l, .ov-fig .leg-r, .ov-fig .upper { transform-origin: 100px 140px; } /* hông */
 .ov-fig .hand { display: none; }                          /* chỉ hiện ở động tác cổ tay */
+.ov-fig .reach-arm { display: none; }                     /* chỉ hiện ở động tác vươn người */
+.ov-fig .reach-l { transform-origin: 72px 88px; }
+.ov-fig .reach-r { transform-origin: 128px 88px; }
+.ov-fig .reach-arm { transform-box: view-box; }
 
 /* Xoay vai: hai tay vẽ vòng — ra sau một vòng rồi đảo chiều ra trước (khớp lời). */
 .ov-fig.fig-shoulders .arm-l { animation: ovShoulderL 4s ease-in-out infinite; }
 .ov-fig.fig-shoulders .arm-r { animation: ovShoulderR 4s ease-in-out infinite; }
 /* Duỗi cổ: nghiêng đầu qua lại, giữ ở mỗi bên. */
 .ov-fig.fig-neck .p-headneck { animation: ovNeck 3.4s ease-in-out infinite; }
-/* Vươn người: hai tay đưa lên quá đầu, giữ, rồi hạ. */
-.ov-fig.fig-reach .arm-l { animation: ovReachL 3.2s ease-in-out infinite; }
-.ov-fig.fig-reach .arm-r { animation: ovReachR 3.2s ease-in-out infinite; }
-/* Gập lưng: gập cả thân trên xuống ở hông. */
-.ov-fig.fig-bend .upper { animation: ovBend 3.6s ease-in-out infinite; }
+/* Vươn người: đổi sang cặp tay DÀI rồi đưa thẳng lên quá đỉnh đầu, giữ, hạ xuống.
+   Tay ngắn thường không bao giờ vượt khỏi đầu nên chỉ ra được dáng chữ V. */
+.ov-fig.fig-reach .arm, .ov-fig.fig-reach .hand { display: none; }
+.ov-fig.fig-reach .reach-arm { display: block; }
+.ov-fig.fig-reach .reach-l { animation: ovReachL 3.6s ease-in-out infinite; }
+.ov-fig.fig-reach .reach-r { animation: ovReachR 3.6s ease-in-out infinite; }
+.ov-fig.fig-reach .body { animation: ovReachLift 3.6s ease-in-out infinite; }
 /* Giãn cổ tay: hiện hai bàn tay, xoay vòng ở cổ tay. */
 .ov-fig.fig-wrist .hand { display: block; }
 .ov-fig.fig-wrist .hand-l { animation: ovRollL 2.2s linear infinite; }
@@ -330,12 +336,31 @@ body.overlay {
 @keyframes ovShoulderL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-360deg); } }
 @keyframes ovShoulderR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(360deg); } }
 @keyframes ovNeck { 0%,100% { transform: rotate(0deg); } 22%,42% { transform: rotate(-27deg); } 60%,80% { transform: rotate(27deg); } }
-@keyframes ovReachL { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(150deg); } }
-@keyframes ovReachR { 0%,100% { transform: rotate(0deg); } 40%,60% { transform: rotate(-150deg); } }
-@keyframes ovBend { 0%,100% { transform: rotate(0deg); } 35%,65% { transform: rotate(60deg); } }
+/* 173° đưa tay từ buông xuôi, quét ngang, lên THẲNG ĐỨNG song song hai bên đầu.
+   Chụm hơn nữa (185°) thì tay đè lên đầu thành hình mái lều, rất khó đọc. */
+@keyframes ovReachL { 0%,100% { transform: rotate(0deg); } 42%,62% { transform: rotate(173deg); } }
+@keyframes ovReachR { 0%,100% { transform: rotate(0deg); } 42%,62% { transform: rotate(-173deg); } }
+@keyframes ovReachLift { 0%,100% { transform: translateY(0); } 42%,62% { transform: translateY(-7px); } }
 @keyframes ovSwingA { 0%,100% { transform: rotate(20deg); } 50% { transform: rotate(-20deg); } }
 @keyframes ovSwingB { 0%,100% { transform: rotate(-20deg); } 50% { transform: rotate(20deg); } }
 @keyframes ovCalf { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+
+/* Gập lưng: hình nhìn NGHIÊNG riêng. Nhìn thẳng không diễn tả nổi động tác gập
+   người về phía trước (chỉ thấy người co lại), nên đây là hình duy nhất vẽ nghiêng. */
+.ov-side { width: 172px; height: 180px; display: none; margin: 0 auto; }
+.ov-side line, .ov-side circle { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; fill: none; }
+.ov-side .s-upper, .ov-side .s-arm { transform-box: view-box; }
+.ov-side .s-upper { transform-origin: 72px 140px; }  /* khớp hông */
+.ov-side .s-arm { transform-origin: 72px 90px; }     /* khớp vai */
+.ov-side.fold .s-upper { animation: ovFold 4s ease-in-out infinite; }
+/* Gập người ra trước thì thân dịch hẳn sang ngang, làm hình lệch khỏi giữa khung.
+   Dời khung ngược lại đúng nhịp để cả tư thế đứng lẫn tư thế gập đều nằm giữa. */
+.ov-side.fold { animation: ovFoldPan 4s ease-in-out infinite; }
+/* Tay xoay NGƯỢC đúng bằng góc gập → luôn buông thẳng xuống theo trọng lực. */
+.ov-side.fold .s-arm { animation: ovFoldArm 4s ease-in-out infinite; }
+@keyframes ovFold { 0%,100% { transform: rotate(0deg); } 40%,62% { transform: rotate(80deg); } }
+@keyframes ovFoldArm { 0%,100% { transform: rotate(0deg); } 40%,62% { transform: rotate(-80deg); } }
+@keyframes ovFoldPan { 0%,100% { transform: translateX(24px); } 40%,62% { transform: translateX(-20px); } }
 
 /* Cho mắt nghỉ: hình mắt riêng (que người không có mặt), con ngươi đảo chậm nhìn ra xa. */
 .ov-eyes .eyeball { stroke: var(--accent); stroke-width: 6; fill: none; }
@@ -345,5 +370,5 @@ body.overlay {
 
 /* Ai bật "giảm chuyển động" trong Windows thì các hình đứng yên ở tư thế đầu. */
 @media (prefers-reduced-motion: reduce) {
-  .ov-fig *, .ov-eyes * { animation: none !important; }
+  .ov-fig *, .ov-side *, .ov-eyes * { animation: none !important; }
 }

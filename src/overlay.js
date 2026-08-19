@@ -5,9 +5,13 @@
 const api = window.standup;
 const $ = (id) => document.getElementById(id);
 
-// Động tác nghỉ mắt dùng hình MẮT; các động tác cơ thể dùng hình QUE; còn lại
-// (nếu sau này thêm động tác chưa vẽ hình) lùi về emoji.
-const EYE_ANIMS = new Set(['eyes']);
+// Động tác nào cần hình RIÊNG thay cho hình que nhìn thẳng. Còn lại dùng hình
+// que với class fig-<anim>; động tác chưa vẽ hình thì lùi về emoji.
+const SPECIAL = {
+  eyes: { id: 'ov-eyes', cls: 'ov-eyes look' },  // nghỉ mắt — que người không có mặt
+  bend: { id: 'ov-side', cls: 'ov-side fold' },  // gập lưng — phải nhìn nghiêng mới đọc được
+};
+const VISUAL_IDS = ['ov-fig', 'ov-side', 'ov-eyes', 'ov-icon'];
 
 function fmt(secs) {
   const m = Math.floor(secs / 60);
@@ -21,21 +25,20 @@ let shownStretch = null;
 function paintStretch(st) {
   if (!st || st.name === shownStretch) return;
   shownStretch = st.name;
-  const fig = $('ov-fig');
-  const eyes = $('ov-eyes');
-  const icon = $('ov-icon');
-  // Mặc định ẩn cả ba rồi bật đúng một cái — CSSOM (style.display), không phải
-  // thuộc tính style nội tuyến, nên hợp lệ với CSP 'self'.
-  fig.style.display = 'none';
-  eyes.style.display = 'none';
-  icon.style.display = 'none';
-  if (st.anim && EYE_ANIMS.has(st.anim)) {
-    eyes.setAttribute('class', 'ov-eyes look');
-    eyes.style.display = 'block';
+  // Ẩn hết rồi bật đúng một cái — dùng CSSOM (style.display), không phải thuộc
+  // tính style nội tuyến, nên hợp lệ với CSP 'self'.
+  for (const id of VISUAL_IDS) $(id).style.display = 'none';
+  const special = st.anim ? SPECIAL[st.anim] : null;
+  if (special) {
+    const el = $(special.id);
+    el.setAttribute('class', special.cls);
+    el.style.display = 'block';
   } else if (st.anim) {
+    const fig = $('ov-fig');
     fig.setAttribute('class', `ov-fig fig-${st.anim}`);
     fig.style.display = 'block';
   } else {
+    const icon = $('ov-icon');
     icon.textContent = st.icon;
     icon.style.display = 'block';
   }

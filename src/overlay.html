@@ -12,12 +12,12 @@
     <div id="ov-countdown" class="ov-countdown">05:00</div>
 
     <section class="ov-card">
-      <!-- Ba kiểu hình minh hoạ giãn cơ, vẽ bằng SVG/CSS (mỗi hình vài KB):
-           - ov-fig: hình que, dùng cho 7 động tác cơ thể (JS gắn class fig-<anim>).
-           - ov-eyes: hình mắt riêng, dùng cho động tác nghỉ mắt (que người không
-             có mặt nên không diễn tả được "nhìn ra xa").
-           - ov-icon: emoji, đường lùi an toàn nếu động tác chưa có hình.
-           JS chỉ hiện một trong ba. -->
+      <!-- Bốn kiểu hình minh hoạ, vẽ bằng SVG/CSS (mỗi hình vài KB). JS chỉ hiện MỘT:
+           - ov-fig  : hình que nhìn thẳng — 6 động tác (vai, cổ, vươn, cổ tay, đi, nhón).
+           - ov-side : hình que nhìn NGHIÊNG — riêng cho gập lưng, vì gập người về phía
+                       trước mà nhìn thẳng thì không thể đọc ra (chỉ thấy người co lại).
+           - ov-eyes : hình mắt — cho động tác nghỉ mắt (que người không có mặt).
+           - ov-icon : emoji, đường lùi an toàn nếu động tác chưa có hình. -->
       <svg id="ov-fig" class="ov-fig" viewBox="0 0 200 210" aria-hidden="true">
         <g class="body">
           <g class="upper">
@@ -28,11 +28,31 @@
             <line class="arm arm-r" x1="128" y1="88" x2="134" y2="126"/>
             <line class="hand hand-l" x1="66" y1="126" x2="58" y2="140"/>
             <line class="hand hand-r" x1="134" y1="126" x2="142" y2="140"/>
+            <!-- Tay dài đúng tầm với (buông tới ngang đùi). Chỉ dùng cho động tác
+                 vươn người: tay ngắn ở trên giơ lên vẫn không qua khỏi đỉnh đầu,
+                 nên không ra được tư thế "vươn thẳng lên cao". -->
+            <line class="reach-arm reach-l" x1="72" y1="88" x2="64" y2="156"/>
+            <line class="reach-arm reach-r" x1="128" y1="88" x2="136" y2="156"/>
           </g>
           <line class="leg leg-l" x1="100" y1="140" x2="84" y2="188"/>
           <line class="leg leg-r" x1="100" y1="140" x2="116" y2="188"/>
         </g>
       </svg>
+
+      <svg id="ov-side" class="ov-side" viewBox="0 0 200 210" aria-hidden="true">
+        <!-- Nhìn nghiêng, mặt quay sang phải. Thân trên gập tại hông; cánh tay tự
+             xoay ngược lại đúng bằng góc gập để luôn buông thẳng xuống theo trọng
+             lực — đó mới ra dáng gập người với tay buông về phía bàn chân. -->
+        <g class="s-upper">
+          <circle class="head" cx="72" cy="46" r="17"/>
+          <line x1="72" y1="63" x2="72" y2="78"/>
+          <line x1="72" y1="78" x2="72" y2="140"/>
+          <line class="s-arm" x1="72" y1="90" x2="76" y2="142"/>
+        </g>
+        <line x1="72" y1="140" x2="66" y2="188"/>
+        <line x1="72" y1="140" x2="80" y2="188"/>
+      </svg>
+
       <svg id="ov-eyes" class="ov-eyes" viewBox="0 0 200 130" aria-hidden="true">
         <circle class="eyeball" cx="68" cy="64" r="30"/>
         <circle class="eyeball" cx="132" cy="64" r="30"/>
