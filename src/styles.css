@@ -370,5 +370,7 @@ body.overlay {
 
 /* Ai bật "giảm chuyển động" trong Windows thì các hình đứng yên ở tư thế đầu. */
 @media (prefers-reduced-motion: reduce) {
-  .ov-fig *, .ov-side *, .ov-eyes * { animation: none !important; }
+  /* Kèm CHÍNH phần tử gốc, không chỉ con: căn khung (pan) của gập lưng nằm trên
+     .ov-side, nếu chỉ chặn ".ov-side *" thì hình vẫn trượt ngang. */
+  .ov-fig, .ov-fig *, .ov-side, .ov-side *, .ov-eyes, .ov-eyes * { animation: none !important; }
 }
