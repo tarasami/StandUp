@@ -121,7 +121,7 @@ Tính khả thi kỹ thuật trên Windows (đã có API sẵn, rủi ro thấp)
 | Giai đoạn | Thời gian | Nội dung | Kết quả |
 |---|---|---|---|
 | **Sprint 0** ✅ | Tuần 1 | Dựng khung, tray icon, vòng lặp timer, cửa sổ nhắc có nút hành động, idle detection | Xong — 3 rủi ro kỹ thuật lớn nhất đều giải được, vá thêm lỗi đồng hồ chỉnh lùi |
-| **Sprint 1–2** ✅ | Tuần 2–3 | Đủ 8 hạng mục MVP, installer, autostart | Xong — onboarding, khởi động cùng Windows, 12 câu nhắc xoay vòng, âm báo, installer NSIS. 234 unit test (186 engine + 48 hàm tách) |
+| **Sprint 1–2** ✅ | Tuần 2–3 | Đủ 8 hạng mục MVP, installer, autostart | Xong — onboarding, khởi động cùng Windows, 12 câu nhắc xoay vòng, âm báo, installer NSIS. 242 unit test (186 engine + 56 hàm tách) |
 | **Sprint 3** ◐ | Tuần 4 | Beta nội bộ 5–10 người dùng thật, sửa lỗi, tinh chỉnh lời nhắc & âm thanh | Bản 1.0 phát hành. *Đã gia cố trước beta: nhật ký sự cố, tự hoãn khi bị phớt lờ, nhường full màn hình (kéo sớm từ v1.1).* |
 | **Sprint 4–5** | Tuần 5–6 | v1.1: overlay nghỉ, DND tự động, lịch làm việc, thống kê | Bản 1.1 |
 | Sau đó | — | Đánh giá metrics → quyết định v2 | — |

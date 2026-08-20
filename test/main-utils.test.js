@@ -3,7 +3,7 @@
 // engine. Những gì tách ra được khỏi tầng đó thì phải có test, bắt đầu từ đây.
 const assert = require('node:assert');
 const {
-  parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  parseSettingsJson, mainWindowHeight, clampWindowY, reminderXY, REMINDER_MARGIN,
   formatLogLine, shouldRotateLog, notificationsAllowedFromState,
 } = require('../electron/main-utils');
 
@@ -39,6 +39,23 @@ check('MỞ cài đặt → full', mainWindowHeight(true, 1080, H) === 750);
 // Kẹp về vùng làm việc: màn hình thấp không chứa nổi chiều cao mong muốn.
 check('màn hình thấp → kẹp full về workArea', mainWindowHeight(true, 700, H) === 700);
 check('màn hình rất thấp → kẹp cả compact', mainWindowHeight(false, 300, H) === 300);
+
+console.log('2b. clampWindowY — giãn cửa sổ mà không thò khỏi màn hình');
+// Màn hình 1920×1080, taskbar dưới → workArea cao 1040, gốc (0,0).
+const WORK = { x: 0, y: 0, width: 1920, height: 1040 };
+check('đang vừa màn hình → giữ nguyên chỗ', clampWindowY(300, 384, WORK) === 300);
+// Hồi quy đúng ca người dùng báo: cửa sổ ở giữa (y=328) xổ cài đặt cao 864 thì
+// đáy tới 1192 — phải đẩy lên 176 để nút Lưu không rơi ra ngoài màn hình.
+check('giãn ra quá đáy → đẩy lên vừa đủ', clampWindowY(328, 864, WORK) === 176);
+check('đẩy lên xong thì đáy chạm mép vùng làm việc', clampWindowY(328, 864, WORK) + 864 === 1040);
+check('sát mép dưới sẵn → vẫn kẹp về trong', clampWindowY(1000, 384, WORK) === 656);
+check('thu nhỏ lại thì không tự dịch', clampWindowY(176, 384, WORK) === 176);
+// Cửa sổ cao hơn cả vùng làm việc: giữ mép trên, thà lòi đáy còn hơn mất tiêu đề.
+check('cao hơn màn hình → dán mép trên', clampWindowY(300, 1200, WORK) === 0);
+// Màn hình phụ đặt bên trên/dưới, hoặc taskbar nằm ngang trên cùng → wa.y khác 0.
+const WORK_TOP = { x: 0, y: -1080, width: 1920, height: 1050 };
+check('màn hình phụ ở trên (y âm) → kẹp theo wa.y', clampWindowY(-1500, 384, WORK_TOP) === -1080);
+check('màn hình phụ ở trên → kẹp theo đáy của nó', clampWindowY(-200, 864, WORK_TOP) === -894);
 
 console.log('3. reminderXY — đặt cửa sổ nhắc theo vị trí đã chọn');
 const WIN = { width: 380, height: 250 };

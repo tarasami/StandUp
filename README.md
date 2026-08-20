@@ -68,7 +68,7 @@ tools/
   make-icon.js   # Sinh icon.ico 7 kích thước, không cần thư viện ngoài
 test/
   engine.test.js      # 186 kiểm tra — engine thuần
-  main-utils.test.js  # 48 kiểm tra — hàm thuần tách khỏi main
+  main-utils.test.js  # 56 kiểm tra — hàm thuần tách khỏi main
 ```
 
 Nguyên tắc kiến trúc: **toàn bộ logic nghiệp vụ nằm trong `engine.js`** — một state machine thuần không phụ thuộc Electron, nhận `(now, idleSecs)` và trả về danh sách effect. Tầng Electron chỉ thực thi effect (mở/đóng cửa sổ, bắn notification). Nhờ vậy logic test được bằng mô phỏng thời gian, và khi chuyển shell (Electron → Tauri) chỉ cần port phần vỏ.
@@ -94,7 +94,7 @@ Nguyên tắc kiến trúc: **toàn bộ logic nghiệp vụ nằm trong `engine
 
 ## Trạng thái
 
-Đủ **8/8 hạng mục MVP** trong [PLAN.md](PLAN.md) — Sprint 0 đến Sprint 2 đã xong. **234 unit test đạt** (186 engine + 48 hàm tách khỏi main).
+Đủ **8/8 hạng mục MVP** trong [PLAN.md](PLAN.md) — Sprint 0 đến Sprint 2 đã xong. **242 unit test đạt** (186 engine + 56 hàm tách khỏi main).
 
 Đã kiểm chứng trên **bản cài đặt thật** (`%LOCALAPPDATA%\Programs\StandUp`): installer chạy trót lọt, tạo đủ shortcut Desktop + Start Menu, shortcut mang đúng AppUserModelID `vn.standup.app`. Bật "khởi động cùng Windows" ghi đúng khoá registry `vn.standup.app = "…\StandUp.exe" --hidden`; tắt thì gỡ sạch.
 

@@ -32,6 +32,19 @@ function mainWindowHeight(settingsOpen, maxHeight, h) {
   return Math.min(settingsOpen ? h.full : h.compact, maxHeight);
 }
 
+// Giữ cửa sổ nằm trọn trong vùng làm việc sau khi đổi chiều cao.
+//   y      = mép trên hiện tại, height = chiều cao MỚI, wa = workArea {y, height}.
+// Cửa sổ chính cao thêm 480px khi xổ cài đặt. Nếu chỉ đổi chiều cao thì phần thêm
+// mọc XUỐNG DƯỚI: cửa sổ đang ở giữa màn hình 1080 (y=328) sẽ có đáy ở 1153 trong
+// khi vùng làm việc chỉ tới 1040 — nút "Lưu cài đặt" rơi ra ngoài màn hình, người
+// dùng thấy cài đặt bị cắt cụt và không lưu được.
+// Đẩy lên VỪA ĐỦ, không hơn: người dùng kê cửa sổ ở đâu thì tôn trọng chỗ đó.
+// Kẹp cả mép trên, phòng khi cửa sổ cao hơn cả vùng làm việc (màn hình rất thấp) —
+// lúc đó thà lòi đáy để nội dung tự cuộn, còn hơn mất luôn thanh tiêu đề.
+function clampWindowY(y, height, wa) {
+  return Math.round(Math.max(wa.y, Math.min(y, wa.y + wa.height - height)));
+}
+
 // Khoảng cách từ mép màn hình khi đặt cửa sổ nhắc ở góc.
 const REMINDER_MARGIN = 16;
 
@@ -86,6 +99,6 @@ function notificationsAllowedFromState(raw) {
 }
 
 module.exports = {
-  parseSettingsJson, mainWindowHeight, reminderXY, REMINDER_MARGIN,
+  parseSettingsJson, mainWindowHeight, clampWindowY, reminderXY, REMINDER_MARGIN,
   formatLogLine, shouldRotateLog, notificationsAllowedFromState,
 };

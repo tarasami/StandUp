@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const { execFileSync, execFile } = require('node:child_process');
 const { Engine, DEFAULT_SETTINGS, clampSettings } = require('./engine');
 const {
-  parseSettingsJson, mainWindowHeight, reminderXY, formatLogLine, shouldRotateLog,
+  parseSettingsJson, mainWindowHeight, clampWindowY, reminderXY, formatLogLine, shouldRotateLog,
   notificationsAllowedFromState,
 } = require('./main-utils');
 
@@ -281,13 +281,16 @@ function fitMain() {
   if (!mainWin || mainWin.isDestroyed()) return;
   // Đo theo màn hình đang chứa cửa sổ, không phải màn hình chính: máy nhiều màn
   // hình rất hay có một cái thấp hơn hẳn.
-  const maxH = screen.getDisplayMatching(mainWin.getBounds()).workArea.height;
-  const want = mainWindowHeight(settingsOpen, maxH, HEIGHTS);
-  const [w, h] = mainWin.getSize();
-  if (h === want) return;
-  // Trên Windows, setSize bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
+  const wa = screen.getDisplayMatching(mainWin.getBounds()).workArea;
+  const want = mainWindowHeight(settingsOpen, wa.height, HEIGHTS);
+  const b = mainWin.getBounds();
+  // Đổi CẢ vị trí chứ không chỉ chiều cao: cửa sổ giãn xuống dưới, đang ở giữa
+  // màn hình mà xổ cài đặt ra là đáy thò khỏi màn hình, nuốt mất nút Lưu.
+  const y = clampWindowY(b.y, want, wa);
+  if (b.height === want && b.y === y) return;
+  // Trên Windows, setSize/setBounds bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
   mainWin.setResizable(true);
-  mainWin.setSize(w, want);
+  mainWin.setBounds({ x: b.x, y, width: b.width, height: want });
   mainWin.setResizable(false);
 }
 
