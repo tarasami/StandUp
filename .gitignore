@@ -3,7 +3,7 @@ dist/
 out/
 *.log
 
-# Thư mục tạm phải trỏ sang ổ D khi build/cài (ổ C hết chỗ)
+# Thư mục tạm khi build/cài — trỏ TEMP sang đây nếu ổ hệ thống hết chỗ
 .build-tmp/
 .install-tmp/
 

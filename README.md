@@ -4,7 +4,7 @@
 
 [![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows%2010%2F11-0078d4)](#cài-đặt)
 [![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-MIT-green)](LICENSE)
-[![Unit test](https://img.shields.io/badge/unit%20test-242%20%C4%91%E1%BA%A1t-brightgreen)](docs/kiem-thu.md)
+[![Unit test](https://github.com/tarasami/StandUp/actions/workflows/test.yml/badge.svg)](https://github.com/tarasami/StandUp/actions/workflows/test.yml)
 [![Phụ thuộc](https://img.shields.io/badge/ph%E1%BB%A5%20thu%E1%BB%99c%20runtime-0-blue)](#nhẹ--sạch)
 
 <p align="center">
