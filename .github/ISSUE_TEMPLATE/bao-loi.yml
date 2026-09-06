@@ -1,0 +1,84 @@
+name: Báo lỗi
+description: App chạy không đúng như mong đợi
+labels: ["lỗi"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cảm ơn bạn đã báo lỗi. Vài thông tin dưới đây giúp truy ra nguyên nhân nhanh hơn nhiều.
+
+        **Lỗi bảo mật thì đừng dùng mẫu này** — xem [SECURITY.md](../blob/master/SECURITY.md).
+
+  - type: textarea
+    id: trieu-chung
+    attributes:
+      label: Chuyện gì xảy ra
+      description: Bạn thấy gì, và bạn mong đợi thấy gì?
+      placeholder: |
+        Ví dụ: Bấm nút ⚙ thì cửa sổ cao lên nhưng nút "Lưu cài đặt" không thấy đâu.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tai-hien
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. Mở StandUp
+        2. Bấm nút ⚙
+        3. Kéo xuống dưới cùng
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ban-chay
+    attributes:
+      label: Bạn chạy bản nào
+      options:
+        - Bản đã cài (StandUp-Setup.exe)
+        - Chạy từ mã nguồn (npm start)
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Phiên bản Windows
+      placeholder: "Windows 11 23H2 / Windows 10 22H2…"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: dpi
+    attributes:
+      label: Tỉ lệ hiển thị (Settings → Display → Scale)
+      options:
+        - "100%"
+        - "125%"
+        - "150%"
+        - "175% hoặc hơn"
+        - Không rõ
+    validations:
+      required: true
+
+  - type: dropdown
+    id: man-hinh
+    attributes:
+      label: Số màn hình
+      options:
+        - 1 màn hình
+        - 2 màn hình trở lên
+    validations:
+      required: true
+
+  - type: textarea
+    id: nhat-ky
+    attributes:
+      label: Vài dòng cuối của nhật ký
+      description: |
+        Mở bằng menu tray → **Mở thư mục nhật ký**, hoặc vào `%APPDATA%\standup\standup.log`.
+        Nhật ký chỉ ghi trạng thái và cài đặt của app — không có tên cửa sổ, không có nội dung
+        bạn gõ. Dù vậy vẫn nên đọc lướt trước khi dán.
+      render: text
+    validations:
+      required: false

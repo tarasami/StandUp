@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lỗi bảo mật
+    url: https://github.com/tarasami/StandUp/security/advisories/new
+    about: Xin báo riêng qua Security Advisory, đừng mở issue công khai.
+  - name: Cách khắc phục sự cố thường gặp
+    url: https://github.com/tarasami/StandUp#khắc-phục-sự-cố
+    about: Không thấy icon tray, app không nhắc, autostart không chạy… xem trước ở đây.

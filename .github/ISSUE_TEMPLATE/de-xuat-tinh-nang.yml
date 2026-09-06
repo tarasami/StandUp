@@ -1,0 +1,37 @@
+name: Đề xuất tính năng
+description: Gợi ý một tính năng hoặc cải tiến
+labels: ["đề xuất"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Trước khi viết, ngó qua [lộ trình](../blob/master/README.md#lộ-trình) xem đã có chưa,
+        và [triết lý dự án](../blob/master/CONTRIBUTING.md#triết-lý) xem có hợp hướng không.
+
+        Tóm tắt ba điều: **không phiền là tính năng số một**; **nhẹ và sạch** (0 phụ thuộc
+        runtime, không mã kết nối mạng); **logic nghiệp vụ nằm trong engine thuần**.
+
+  - type: textarea
+    id: van-de
+    attributes:
+      label: Vấn đề bạn đang gặp
+      description: Mô tả tình huống thật, đừng mô tả sẵn giải pháp. Vấn đề rõ thì giải pháp tốt sẽ tự lộ ra.
+      placeholder: |
+        Ví dụ: Buổi tối tôi không muốn bị nhắc, nhưng tắt app thì sáng hôm sau quên bật lại.
+    validations:
+      required: true
+
+  - type: textarea
+    id: de-xuat
+    attributes:
+      label: Bạn nghĩ nên làm thế nào
+    validations:
+      required: false
+
+  - type: textarea
+    id: da-thu
+    attributes:
+      label: Bạn đã thử cách nào chưa
+      description: Có cài đặt hiện có nào gần đạt được điều bạn cần không? Vì sao chưa đủ?
+    validations:
+      required: false

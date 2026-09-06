@@ -9,8 +9,30 @@
     "icon": "node tools/make-icon.js build/icon.ico",
     "dist": "electron-builder --win --publish never"
   },
-  "author": "",
+  "author": "tarasami",
   "license": "MIT",
+  "homepage": "https://github.com/tarasami/StandUp#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tarasami/StandUp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tarasami/StandUp/issues"
+  },
+  "keywords": [
+    "break-reminder",
+    "stretch",
+    "rsi",
+    "ergonomics",
+    "health",
+    "electron",
+    "windows",
+    "tray",
+    "vietnamese"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "devDependencies": {
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3"
@@ -18,7 +40,7 @@
   "build": {
     "appId": "vn.standup.app",
     "productName": "StandUp",
-    "copyright": "StandUp",
+    "copyright": "Copyright © 2026 tarasami",
     "directories": {
       "output": "dist",
       "buildResources": "build"
