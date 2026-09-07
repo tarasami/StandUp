@@ -1,3 +1,6 @@
+// The floating reminder window; it doubles as the small break countdown when the
+// break overlay is switched off.
+// Comments are English; strings the user reads stay Vietnamese (see CONTRIBUTING.md).
 const api = window.standup;
 const $ = (id) => document.getElementById(id);
 
@@ -14,7 +17,8 @@ function render(st) {
   if (breaking) {
     $('break-countdown').textContent = fmt(st.remainingSecs);
   } else if (st.message) {
-    // Dùng đúng câu engine đã chọn để cửa sổ và notification không nói khác nhau.
+    // Use the exact text the engine picked, so the window and the notification never
+    // say different things.
     $('remind-title').textContent = st.message.title;
     $('remind-text').textContent = st.message.body;
   }

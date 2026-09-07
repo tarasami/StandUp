@@ -62,7 +62,7 @@ và có bàn trước.
 
 **3. Logic nghiệp vụ nằm trong engine thuần.** `electron/engine.js` **không được**
 `require('electron')`. Đó là điều kiện để test bằng mô phỏng thời gian. Xem
-[docs/kien-truc.md](docs/kien-truc.md).
+[docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -73,27 +73,33 @@ Không có linter tự động — chỉ cần **viết giống mã xung quanh**
 - JavaScript thuần, không TypeScript, không bước build cho mã nguồn.
 - 2 dấu cách thụt lề, nháy đơn, có dấu chấm phẩy.
 - **Xuống dòng CRLF** — kho này dùng CRLF; đừng đổi hàng loạt.
-- Tên biến/hàm bằng tiếng Anh, **bình luận bằng tiếng Việt**.
+- **Mã nguồn viết bằng tiếng Anh**: tên biến, tên hàm, bình luận, tên test — để người
+  ngoài đọc được kho này.
+- **Chuỗi người dùng nhìn thấy giữ tiếng Việt**: giao diện, câu nhắc, tên động tác
+  giãn cơ, nhãn menu tray, và nội dung ghi vào `standup.log` (người dùng được hướng
+  dẫn đọc file này khi báo lỗi). Đây là app cho người Việt; giao diện đa ngôn ngữ nằm
+  trong lộ trình sau 1.0.
 
 **Bình luận giải thích VÌ SAO, không phải LÀM GÌ.** Mã đã nói nó làm gì rồi. Cái đắt giá là
 lý do — nhất là những chỗ trông kỳ quặc:
 
 ```js
-// TỐT — cứu người đọc sau này khỏi "dọn dẹp" mất một bản vá
-// Trên Windows, setSize/setBounds bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
+// GOOD — saves a future reader from "cleaning up" a hard-won fix
+// On Windows, setSize/setBounds is ignored for a resizable:false window → unlock briefly.
 mainWin.setResizable(true);
 
-// KHÔNG CẦN
-// Đặt resizable thành true
+// POINTLESS
+// Set resizable to true
 mainWin.setResizable(true);
 ```
 
 Gặp một cái bẫy của Windows/Electron thì ghi lại vào
-[docs/ghi-chu-ky-thuat.md](docs/ghi-chu-ky-thuat.md) — đó là phần tài liệu có giá trị nhất
+[docs/technical-notes.md](docs/technical-notes.md) — đó là phần tài liệu có giá trị nhất
 của dự án.
 
-**Giao diện bằng tiếng Việt**, giọng thân thiện, xưng "bạn". Chưa có hệ thống đa ngôn ngữ
-(nằm trong lộ trình sau 1.0) nên chuỗi hiển thị viết thẳng trong mã.
+Giọng của giao diện: thân thiện, xưng "bạn", không ra lệnh. Chưa có hệ thống đa ngôn ngữ
+nên chuỗi hiển thị viết thẳng trong mã — mỗi file có một dòng ghi chú ở đầu nhắc lại
+ranh giới tiếng Anh / tiếng Việt này.
 
 ---
 
@@ -108,7 +114,7 @@ gian, nên không có cớ gì để bỏ qua.
 được. Mọi lỗi thật của dự án đến nay đều nằm ở tầng Electron, không phải engine.
 
 **Sửa giao diện hoặc hành vi cửa sổ thì nghiệm trên app chạy thật**, đừng chỉ dựa vào unit
-test. [docs/kiem-thu.md](docs/kiem-thu.md) mô tả cách điều khiển app đang chạy bằng CDP để
+test. [docs/testing.md](docs/testing.md) mô tả cách điều khiển app đang chạy bằng CDP để
 đo hình học thật (vị trí cửa sổ, góc xoay, khả năng cuộn), kèm danh sách những cái bẫy đo
 đạc đã gặp.
 
@@ -135,7 +141,7 @@ Trước khi mở PR, tự soát:
 - [ ] Sửa UI/cửa sổ → đã chạy thử app thật, mô tả cách nghiệm trong PR
 - [ ] Thêm ô cài đặt → đã chỉnh `HEIGHTS.full` trong `main.js` và kiểm nút *Lưu* còn thấy
 - [ ] Không thêm phụ thuộc runtime (hoặc có lý do rõ trong PR)
-- [ ] Gặp bẫy mới → đã ghi vào `docs/ghi-chu-ky-thuat.md`
+- [ ] Gặp bẫy mới → đã ghi vào `docs/technical-notes.md`
 
 Tính năng lớn thì **mở issue bàn trước** — đỡ mất công viết mã rồi bị từ chối vì lệch hướng
 sản phẩm.

@@ -1,59 +1,64 @@
-// Các hàm THUẦN của main process — tách khỏi main.js để unit-test được.
+// PURE functions of the main process — split out of main.js so they can be unit-tested.
 //
-// Lý do tồn tại của file này: engine.js được phủ test rất kỹ và chưa từng có lỗi
-// nào ở đó, trong khi toàn bộ lỗi thật gặp ngày 10/08/2026 đều nằm trong main.js
-// — nơi không có lấy một test, vì file đó require('electron') nên không nạp được
-// từ Node thường. Mọi logic không cần Electron nên chuyển sang đây.
+// Why this file exists: engine.js has very thorough test coverage and has never
+// produced a bug, whereas every real bug found on 2026-08-10 lived in main.js —
+// which had not a single test, because that file require()s electron and so cannot
+// be loaded from plain Node. Any logic that does not need Electron belongs here.
 
 const BOM = 0xFEFF;
 
-// Parse nội dung settings.json. Trả về object, hoặc null nếu hỏng/không phải object.
+// Parse the contents of settings.json. Returns an object, or null if it is broken
+// or not an object.
 function parseSettingsJson(text) {
   try {
     const s = String(text);
-    // Cắt BOM (U+FEFF) trước khi parse: file sửa tay bằng trình soạn thảo Windows
-    // rất dễ dính BOM ở đầu, mà JSON.parse thì ném lỗi vì nó — hậu quả là mất
-    // sạch cài đặt và bị bắt onboarding lại, không một lời báo. So mã ký tự chứ
-    // không dùng regex, để trong mã nguồn không có ký tự vô hình nào.
+    // Strip the BOM (U+FEFF) before parsing: a file hand-edited with a Windows text
+    // editor very easily picks one up, and JSON.parse throws on it — the result was
+    // losing every setting and being sent through onboarding again, without a word
+    // of warning. Compare the char code rather than using a regex, so no invisible
+    // character ever appears in the source.
     const body = s.charCodeAt(0) === BOM ? s.slice(1) : s;
     const parsed = JSON.parse(body);
-    // Mảng và null cũng lọt qua JSON.parse nhưng không dùng làm cài đặt được.
+    // Arrays and null also survive JSON.parse but cannot serve as settings.
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-// Chiều cao cửa sổ chính theo việc cài đặt đang MỞ (bấm nút ⚙ để xổ ra) hay đóng.
-// Hai chiều cao (h.compact / h.full) đo thật bằng DevTools. Kẹp về vùng làm việc
-// để cửa sổ không thò xuống dưới taskbar; vượt thì để nội dung tự cuộn còn hơn
-// mất nút.
+// Height of the main window depending on whether the settings panel is OPEN (press
+// the gear button to expand it) or closed. Both heights (h.compact / h.full) were
+// measured for real with DevTools. Clamp to the work area so the window never
+// extends under the taskbar; if it does not fit, letting the content scroll beats
+// losing the buttons.
 function mainWindowHeight(settingsOpen, maxHeight, h) {
   return Math.min(settingsOpen ? h.full : h.compact, maxHeight);
 }
 
-// Giữ cửa sổ nằm trọn trong vùng làm việc sau khi đổi chiều cao.
-//   y      = mép trên hiện tại, height = chiều cao MỚI, wa = workArea {y, height}.
-// Cửa sổ chính cao thêm 480px khi xổ cài đặt. Nếu chỉ đổi chiều cao thì phần thêm
-// mọc XUỐNG DƯỚI: cửa sổ đang ở giữa màn hình 1080 (y=328) sẽ có đáy ở 1153 trong
-// khi vùng làm việc chỉ tới 1040 — nút "Lưu cài đặt" rơi ra ngoài màn hình, người
-// dùng thấy cài đặt bị cắt cụt và không lưu được.
-// Đẩy lên VỪA ĐỦ, không hơn: người dùng kê cửa sổ ở đâu thì tôn trọng chỗ đó.
-// Kẹp cả mép trên, phòng khi cửa sổ cao hơn cả vùng làm việc (màn hình rất thấp) —
-// lúc đó thà lòi đáy để nội dung tự cuộn, còn hơn mất luôn thanh tiêu đề.
+// Keep the window fully inside the work area after its height changes.
+//   y = current top edge, height = NEW height, wa = workArea {y, height}.
+// The main window grows by 480px when the settings panel expands. Changing only the
+// height makes that growth go DOWNWARD: a window centred on a 1080px screen (y=328)
+// ends up with its bottom at 1153 while the work area stops at 1040 — the "Save
+// settings" button falls off the screen, so the user sees the settings cut short
+// and cannot save.
+// Move it up JUST ENOUGH, no further: wherever the user parked the window, respect it.
+// Clamp the top edge too, in case the window is taller than the whole work area (a
+// very short screen) — better to let the bottom overflow and the content scroll than
+// to lose the title bar entirely.
 function clampWindowY(y, height, wa) {
   return Math.round(Math.max(wa.y, Math.min(y, wa.y + wa.height - height)));
 }
 
-// Khoảng cách từ mép màn hình khi đặt cửa sổ nhắc ở góc.
+// Gap from the screen edge when the reminder window sits in a corner.
 const REMINDER_MARGIN = 16;
 
-// Toạ độ góc trên-trái để đặt cửa sổ nhắc, theo lựa chọn vị trí.
-//   wa  = workArea {x, y, width, height} — đã trừ taskbar.
-//   win = {width, height} của cửa sổ nhắc.
-// Trả về {x, y} nguyên. Chỉ 'center' là trường hợp riêng; mọi giá trị khác
-// (kể cả rác) đều rơi về góc dưới-phải — clampSettings đã lọc trước rồi nên
-// đây chỉ là lưới an toàn cuối.
+// Top-left coordinates for the reminder window, per the chosen position.
+//   wa  = workArea {x, y, width, height} — taskbar already subtracted.
+//   win = {width, height} of the reminder window.
+// Returns integer {x, y}. Only 'center' is a special case; every other value
+// (garbage included) falls back to the bottom-right corner — clampSettings already
+// filters the input, so this is just a final safety net.
 function reminderXY(pos, wa, win) {
   if (pos === 'center') {
     return {
@@ -67,9 +72,9 @@ function reminderXY(pos, wa, win) {
   };
 }
 
-// Định dạng một dòng nhật ký: thời gian ĐỊA PHƯƠNG (dễ đọc khi soi lỗi) + cấp +
-// thông điệp. Nhận sẵn một Date nên hàm thuần, test được. Ký tự xuống dòng trong
-// thông điệp bị đổi thành khoảng trắng để mỗi sự kiện luôn gọn đúng một dòng.
+// Format one log line: LOCAL time (easier to read while debugging) + level +
+// message. It takes a ready-made Date, which keeps the function pure and testable.
+// Newlines inside the message become spaces so every event stays on exactly one line.
 function formatLogLine(date, level, message) {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   const ts = `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())} `
@@ -78,23 +83,24 @@ function formatLogLine(date, level, message) {
   return `${ts}  ${String(level).toUpperCase().padEnd(5)}  ${msg}`;
 }
 
-// Đã đến lúc xoay vòng file nhật ký chưa: kích thước hiện tại chạm/vượt ngưỡng.
+// Is it time to rotate the log file: current size has reached or passed the limit.
 function shouldRotateLog(currentBytes, maxBytes) {
   return Number(currentBytes) >= Number(maxBytes);
 }
 
-// Diễn giải kết quả SHQueryUserNotificationState (số 1..7 của Windows) thành "có
-// được phép bung cửa sổ nhắc lúc này không". CHỈ 5 (QUNS_ACCEPTS_NOTIFICATIONS)
-// là desktop bình thường → được phép. Mọi giá trị khác đều là lúc KHÔNG nên làm
-// phiền: 1 khoá máy/screensaver, 2 app full-screen (video, trình chiếu đang
-// xem), 3 game D3D full-screen, 4 chế độ trình chiếu, 6 quiet-time, 7 app full-
-// screen kiểu Store. Đọc KHÔNG ra số hợp lệ (truy vấn lỗi trả -1, chuỗi rỗng,
-// rác) → coi như ĐƯỢC PHÉP (fail-open): thà lỡ nhắc lúc full-screen còn hơn tự
-// tắt hẳn tính năng nhắc chỉ vì một lần hỏi Windows bị hỏng.
+// Turn the result of SHQueryUserNotificationState (a Windows value of 1..7) into
+// "are we allowed to pop the reminder window right now". ONLY 5
+// (QUNS_ACCEPTS_NOTIFICATIONS) means a normal desktop → allowed. Every other value
+// means this is a bad moment to interrupt: 1 locked/screensaver, 2 full-screen app
+// (video, a presentation being watched), 3 full-screen D3D game, 4 presentation
+// mode, 6 quiet time, 7 full-screen Store app. If we cannot read a valid number
+// (a failed query returns -1, an empty string, garbage) → treat it as ALLOWED
+// (fail-open): missing a reminder during full-screen is far better than silently
+// disabling reminders altogether because one query to Windows broke.
 const QUNS_ACCEPTS_NOTIFICATIONS = 5;
 function notificationsAllowedFromState(raw) {
   const n = parseInt(String(raw).trim(), 10);
-  if (!Number.isInteger(n) || n < 1 || n > 7) return true; // không rõ → cho phép
+  if (!Number.isInteger(n) || n < 1 || n > 7) return true; // unknown → allow
   return n === QUNS_ACCEPTS_NOTIFICATIONS;
 }
 

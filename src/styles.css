@@ -20,7 +20,7 @@ body {
   -webkit-user-select: none;
 }
 
-/* ============ Cửa sổ chính ============ */
+/* ============ Main window ============ */
 
 body.main { padding: 20px; }
 
@@ -33,7 +33,7 @@ header {
 header h1 { font-size: 22px; }
 header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
-/* Nút ⚙ ở góc header: bấm để xổ phần cài đặt ra/vào. */
+/* Gear button in the header corner: expands/collapses the settings panel. */
 .gear {
   flex: none;
   width: 34px;
@@ -49,7 +49,7 @@ header .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .gear:hover { border-color: var(--muted); }
 .gear.active { border-color: var(--accent); color: var(--accent); }
 
-/* Ẩn phần cài đặt khi chưa bấm ⚙ để xổ ra. */
+/* Settings stay hidden until the gear is pressed. */
 .hidden { display: none; }
 
 .card {
@@ -136,7 +136,7 @@ select:focus { outline: 1px solid var(--accent); }
 
 footer { text-align: center; color: var(--muted); font-size: 11px; margin-top: 14px; }
 
-/* Checkbox trong cài đặt & onboarding */
+/* Checkboxes in settings and onboarding */
 label.check {
   display: flex;
   align-items: center;
@@ -153,7 +153,7 @@ label.check input[type='checkbox'] {
   flex: none;
 }
 label.check em { color: var(--muted); font-style: normal; font-size: 11.5px; }
-/* Ô có chú thích xuống dòng: canh checkbox theo dòng đầu, chú thích mờ ở dưới. */
+/* Rows with a wrapped note: align the checkbox to the first line, dim note below. */
 label.check.stack { align-items: flex-start; }
 label.check.stack input[type='checkbox'] { margin-top: 1px; }
 label.check em.sub { display: block; margin-top: 3px; line-height: 1.45; }
@@ -207,7 +207,7 @@ label.custom input { width: 72px; }
 .btn.big { padding: 13px; font-size: 15px; margin-top: 16px; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 
-/* ============ Cửa sổ nhắc nhở ============ */
+/* ============ Reminder window ============ */
 
 body.reminder {
   padding: 18px;
@@ -217,7 +217,7 @@ body.reminder {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  -webkit-app-region: drag; /* kéo được cửa sổ không viền */
+  -webkit-app-region: drag; /* makes the frameless window draggable */
 }
 body.reminder .btn,
 body.reminder input { -webkit-app-region: no-drag; }
@@ -238,15 +238,15 @@ body.reminder input { -webkit-app-region: no-drag; }
   margin: 6px 0 14px;
 }
 
-/* ============ Màn nghỉ toàn màn hình ============ */
+/* ============ Full-screen break overlay ============ */
 
 body.overlay {
   height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Hơi trong suốt để vẫn thấy mờ mờ công việc phía sau — che hẳn khiến người
-     dùng thấy bị cắt ngang, còn thấy được nền thì cảm giác "tạm dừng" nhẹ hơn. */
+  /* Slightly translucent so the work behind stays faintly visible — blacking it out
+     feels like an interruption, whereas seeing through makes it read as a pause. */
   background: rgba(12, 14, 20, 0.93);
   cursor: default;
 }
@@ -291,53 +291,56 @@ body.overlay {
   font-size: 11.5px;
 }
 
-/* ---- Hình minh hoạ giãn cơ trong màn nghỉ (vẽ bằng SVG/CSS, mỗi hình vài KB) ---- */
+/* ---- Stretch figures in the break overlay (SVG/CSS, a few KB each) ---- */
 .ov-fig, .ov-eyes { width: 172px; height: 180px; display: none; margin: 0 auto; }
 .ov-fig line, .ov-fig circle { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; fill: none; }
-/* transform-box: view-box để transform-origin (px) tính theo hệ toạ độ viewBox. */
+/* transform-box: view-box makes transform-origin (px) resolve in viewBox coordinates. */
 .ov-fig .p-headneck, .ov-fig .arm, .ov-fig .hand, .ov-fig .leg, .ov-fig .upper, .ov-fig .body { transform-box: view-box; }
-.ov-fig .p-headneck { transform-origin: 100px 76px; }   /* khớp cổ */
-.ov-fig .arm-l { transform-origin: 72px 88px; }          /* vai trái */
-.ov-fig .arm-r { transform-origin: 128px 88px; }         /* vai phải */
-.ov-fig .hand-l { transform-origin: 66px 126px; }        /* cổ tay trái */
-.ov-fig .hand-r { transform-origin: 134px 126px; }       /* cổ tay phải */
-.ov-fig .leg-l, .ov-fig .leg-r, .ov-fig .upper { transform-origin: 100px 140px; } /* hông */
-.ov-fig .hand { display: none; }                          /* chỉ hiện ở động tác cổ tay */
-.ov-fig .reach-arm { display: none; }                     /* chỉ hiện ở động tác vươn người */
+.ov-fig .p-headneck { transform-origin: 100px 76px; }   /* neck joint */
+.ov-fig .arm-l { transform-origin: 72px 88px; }          /* left shoulder */
+.ov-fig .arm-r { transform-origin: 128px 88px; }         /* right shoulder */
+.ov-fig .hand-l { transform-origin: 66px 126px; }        /* left wrist */
+.ov-fig .hand-r { transform-origin: 134px 126px; }       /* right wrist */
+.ov-fig .leg-l, .ov-fig .leg-r, .ov-fig .upper { transform-origin: 100px 140px; } /* hips */
+.ov-fig .hand { display: none; }                          /* only shown for the wrist stretch */
+.ov-fig .reach-arm { display: none; }                     /* only shown for the overhead reach */
 .ov-fig .reach-l { transform-origin: 72px 88px; }
 .ov-fig .reach-r { transform-origin: 128px 88px; }
 .ov-fig .reach-arm { transform-box: view-box; }
 
-/* Xoay vai: hai tay vẽ vòng — ra sau một vòng rồi đảo chiều ra trước (khớp lời). */
+/* Shoulder rolls: both arms circle — one turn backwards, then reverse forwards
+   (matching the instruction text). */
 .ov-fig.fig-shoulders .arm-l { animation: ovShoulderL 4s ease-in-out infinite; }
 .ov-fig.fig-shoulders .arm-r { animation: ovShoulderR 4s ease-in-out infinite; }
-/* Duỗi cổ: nghiêng đầu qua lại, giữ ở mỗi bên. */
+/* Neck stretch: tilt the head side to side, holding at each side. */
 .ov-fig.fig-neck .p-headneck { animation: ovNeck 3.4s ease-in-out infinite; }
-/* Vươn người: đổi sang cặp tay DÀI rồi đưa thẳng lên quá đỉnh đầu, giữ, hạ xuống.
-   Tay ngắn thường không bao giờ vượt khỏi đầu nên chỉ ra được dáng chữ V. */
+/* Overhead reach: swap in the LONG arms, raise them past the top of the head, hold,
+   lower. The ordinary short arms never clear the head, so they only ever read as a V. */
 .ov-fig.fig-reach .arm, .ov-fig.fig-reach .hand { display: none; }
 .ov-fig.fig-reach .reach-arm { display: block; }
 .ov-fig.fig-reach .reach-l { animation: ovReachL 3.6s ease-in-out infinite; }
 .ov-fig.fig-reach .reach-r { animation: ovReachR 3.6s ease-in-out infinite; }
 .ov-fig.fig-reach .body { animation: ovReachLift 3.6s ease-in-out infinite; }
-/* Giãn cổ tay: hiện hai bàn tay, xoay vòng ở cổ tay. */
+/* Wrist stretch: show both hands and circle them at the wrist. */
 .ov-fig.fig-wrist .hand { display: block; }
 .ov-fig.fig-wrist .hand-l { animation: ovRollL 2.2s linear infinite; }
 .ov-fig.fig-wrist .hand-r { animation: ovRollR 2.2s linear infinite; }
-/* Đi vài bước: chân và tay so le như đi tại chỗ. */
+/* Walk: legs and arms alternate, as if marching on the spot. */
 .ov-fig.fig-walk .leg-l, .ov-fig.fig-walk .arm-r { animation: ovSwingA 1.1s ease-in-out infinite; }
 .ov-fig.fig-walk .leg-r, .ov-fig.fig-walk .arm-l { animation: ovSwingB 1.1s ease-in-out infinite; }
-/* Nhón chân: cả người nhấc lên hạ xuống. */
+/* Calf raises: the whole figure lifts and lowers. */
 .ov-fig.fig-calf .body { animation: ovCalf 1.5s ease-in-out infinite; }
 
 @keyframes ovRollL { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes ovRollR { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
-/* Xoay vai: 0→nửa chu kỳ quay hết một vòng ra sau (-360), rồi quay ngược về (ra trước). */
+/* Shoulder roll: 0 → half the cycle is one full turn backwards (-360), then it
+   unwinds forwards. */
 @keyframes ovShoulderL { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-360deg); } }
 @keyframes ovShoulderR { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(360deg); } }
 @keyframes ovNeck { 0%,100% { transform: rotate(0deg); } 22%,42% { transform: rotate(-27deg); } 60%,80% { transform: rotate(27deg); } }
-/* 173° đưa tay từ buông xuôi, quét ngang, lên THẲNG ĐỨNG song song hai bên đầu.
-   Chụm hơn nữa (185°) thì tay đè lên đầu thành hình mái lều, rất khó đọc. */
+/* 173° takes the arms from hanging down, out through horizontal, to VERTICAL and
+   parallel beside the head. Any further (185°) and they cross over the head into a
+   tent shape that is very hard to read. */
 @keyframes ovReachL { 0%,100% { transform: rotate(0deg); } 42%,62% { transform: rotate(173deg); } }
 @keyframes ovReachR { 0%,100% { transform: rotate(0deg); } 42%,62% { transform: rotate(-173deg); } }
 @keyframes ovReachLift { 0%,100% { transform: translateY(0); } 42%,62% { transform: translateY(-7px); } }
@@ -345,32 +348,36 @@ body.overlay {
 @keyframes ovSwingB { 0%,100% { transform: rotate(-20deg); } 50% { transform: rotate(20deg); } }
 @keyframes ovCalf { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
 
-/* Gập lưng: hình nhìn NGHIÊNG riêng. Nhìn thẳng không diễn tả nổi động tác gập
-   người về phía trước (chỉ thấy người co lại), nên đây là hình duy nhất vẽ nghiêng. */
+/* Forward bend: its own SIDE-ON figure. A front view cannot convey bending forward
+   (the figure just appears to shrink), so this is the only side-on drawing. */
 .ov-side { width: 172px; height: 180px; display: none; margin: 0 auto; }
 .ov-side line, .ov-side circle { stroke: var(--accent); stroke-width: 6; stroke-linecap: round; fill: none; }
 .ov-side .s-upper, .ov-side .s-arm { transform-box: view-box; }
-.ov-side .s-upper { transform-origin: 72px 140px; }  /* khớp hông */
-.ov-side .s-arm { transform-origin: 72px 90px; }     /* khớp vai */
+.ov-side .s-upper { transform-origin: 72px 140px; }  /* hip joint */
+.ov-side .s-arm { transform-origin: 72px 90px; }     /* shoulder joint */
 .ov-side.fold .s-upper { animation: ovFold 4s ease-in-out infinite; }
-/* Gập người ra trước thì thân dịch hẳn sang ngang, làm hình lệch khỏi giữa khung.
-   Dời khung ngược lại đúng nhịp để cả tư thế đứng lẫn tư thế gập đều nằm giữa. */
+/* Bending forward swings the torso well off to one side, pushing the figure out of
+   the frame centre. Pan the other way in step, so both the upright and the folded
+   pose stay centred. */
 .ov-side.fold { animation: ovFoldPan 4s ease-in-out infinite; }
-/* Tay xoay NGƯỢC đúng bằng góc gập → luôn buông thẳng xuống theo trọng lực. */
+/* The arm counter-rotates by exactly the fold angle → it always hangs straight down,
+   as gravity would have it. */
 .ov-side.fold .s-arm { animation: ovFoldArm 4s ease-in-out infinite; }
 @keyframes ovFold { 0%,100% { transform: rotate(0deg); } 40%,62% { transform: rotate(80deg); } }
 @keyframes ovFoldArm { 0%,100% { transform: rotate(0deg); } 40%,62% { transform: rotate(-80deg); } }
 @keyframes ovFoldPan { 0%,100% { transform: translateX(24px); } 40%,62% { transform: translateX(-20px); } }
 
-/* Cho mắt nghỉ: hình mắt riêng (que người không có mặt), con ngươi đảo chậm nhìn ra xa. */
+/* Eye rest: its own pair of eyes (a stick figure has no face); the pupils drift
+   slowly, looking into the distance. */
 .ov-eyes .eyeball { stroke: var(--accent); stroke-width: 6; fill: none; }
 .ov-eyes .pupil { fill: var(--accent); stroke: none; transform-box: view-box; }
 .ov-eyes.look .pupil { animation: ovGaze 4.2s ease-in-out infinite; }
 @keyframes ovGaze { 0%,100% { transform: translateX(0); } 20%,32% { transform: translateX(-13px); } 60%,72% { transform: translateX(13px); } }
 
-/* Ai bật "giảm chuyển động" trong Windows thì các hình đứng yên ở tư thế đầu. */
+/* With "reduce motion" enabled in Windows, every figure holds its opening pose. */
 @media (prefers-reduced-motion: reduce) {
-  /* Kèm CHÍNH phần tử gốc, không chỉ con: căn khung (pan) của gập lưng nằm trên
-     .ov-side, nếu chỉ chặn ".ov-side *" thì hình vẫn trượt ngang. */
+  /* Include the ROOT elements themselves, not just their children: the forward
+     bend's framing pan lives on .ov-side, so blocking only ".ov-side *" leaves the
+     figure still sliding sideways. */
   .ov-fig, .ov-fig *, .ov-side, .ov-side *, .ov-eyes, .ov-eyes * { animation: none !important; }
 }

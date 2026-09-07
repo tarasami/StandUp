@@ -15,4 +15,4 @@
 - [ ] Sửa giao diện / hành vi cửa sổ → đã chạy thử app thật
 - [ ] Thêm ô cài đặt → đã chỉnh `HEIGHTS.full` và kiểm nút *Lưu* vẫn thấy được
 - [ ] Không thêm phụ thuộc runtime (hoặc đã giải thích lý do ở trên)
-- [ ] Gặp bẫy Windows/Electron mới → đã ghi vào `docs/ghi-chu-ky-thuat.md`
+- [ ] Gặp bẫy Windows/Electron mới → đã ghi vào `docs/technical-notes.md`

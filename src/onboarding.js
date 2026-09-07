@@ -1,10 +1,12 @@
+// First-run screen: pick an interval and go.
+// Comments are English; strings the user reads stay Vietnamese (see CONTRIBUTING.md).
 const api = window.standup;
 const $ = (id) => document.getElementById(id);
 
 const presets = [...document.querySelectorAll('.preset')];
 
-// Nút preset và ô nhập tay luôn phản chiếu lẫn nhau: bấm preset thì ô nhập đổi
-// theo, gõ tay thì preset nào khớp sẽ sáng lên.
+// The preset buttons and the free-entry field always mirror each other: pressing a
+// preset fills the field, and typing a value highlights a matching preset.
 function syncPresets(mins) {
   presets.forEach((p) => p.classList.toggle('selected', Number(p.dataset.mins) === mins));
 }
@@ -26,7 +28,8 @@ $('btn-start').addEventListener('click', async () => {
   });
 });
 
-// Bản dev không ghi mục khởi động (sẽ trỏ vào electron.exe trong node_modules).
+// A dev build writes no startup entry (it would point at electron.exe inside
+// node_modules).
 api.getEnv().then(({ packaged }) => {
   if (!packaged) {
     $('autostart-note').textContent = '(chỉ có tác dụng ở bản cài đặt)';

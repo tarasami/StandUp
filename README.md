@@ -8,7 +8,7 @@
 [![Phụ thuộc](https://img.shields.io/badge/ph%E1%BB%A5%20thu%E1%BB%99c%20runtime-0-blue)](#nhẹ--sạch)
 
 <p align="center">
-  <img src="docs/images/man-nghi.png" alt="Màn nghỉ che màn hình với động tác giãn cơ 'Vươn người'" width="780">
+  <img src="docs/images/break-overlay.png" alt="Màn nghỉ che màn hình với động tác giãn cơ 'Vươn người'" width="780">
 </p>
 
 Ai cũng **biết** cần đứng dậy mỗi tiếng. Vấn đề là lúc đang tập trung thì **quên**. Phần khó
@@ -52,7 +52,7 @@ và biết im lặng khi cần.*
 <table>
 <tr>
 <td width="50%" valign="top">
-<img src="docs/images/cua-so-nhac.png" alt="Cửa sổ nhắc nổi với ba nút Nghỉ ngay, Hoãn 5 phút, Bỏ qua">
+<img src="docs/images/reminder-window.png" alt="Cửa sổ nhắc nổi với ba nút Nghỉ ngay, Hoãn 5 phút, Bỏ qua">
 </td>
 <td valign="top">
 
@@ -147,7 +147,7 @@ Chọn một con số, gạt hai công tắc, bấm **Bắt đầu** — app thu
 <table>
 <tr>
 <td width="42%" valign="top">
-<img src="docs/images/cua-so-chinh.png" alt="Cửa sổ chính hiện thời gian còn lại tới lần nhắc tiếp theo">
+<img src="docs/images/main-window.png" alt="Cửa sổ chính hiện thời gian còn lại tới lần nhắc tiếp theo">
 </td>
 <td valign="top">
 
@@ -194,7 +194,7 @@ Chuột phải vào tray icon:
 Bấm nút **⚙** ở cửa sổ chính để xổ phần cài đặt.
 
 <p align="center">
-  <img src="docs/images/cai-dat.png" alt="Bảng cài đặt của StandUp" width="420">
+  <img src="docs/images/settings.png" alt="Bảng cài đặt của StandUp" width="420">
 </p>
 
 | Cài đặt | Mặc định | Dải hợp lệ | Ý nghĩa |
@@ -271,7 +271,7 @@ npx electron . --user-data-dir=.dev-profile
 
 Windows cache danh tính ứng dụng trong database thông báo. Nếu máy bạn từng nhận toast từ
 app này *trước khi* nó đăng ký AUMID, tên cũ có thể còn kẹt lại. Máy cài mới không gặp.
-Chi tiết cơ chế: [docs/ghi-chu-ky-thuat.md](docs/ghi-chu-ky-thuat.md#toast-và-aumid).
+Chi tiết cơ chế: [docs/technical-notes.md](docs/technical-notes.md#toast-và-aumid).
 </details>
 
 ---
@@ -309,9 +309,9 @@ test/
   engine.test.js       186 kiểm tra — engine thuần
   main-utils.test.js    56 kiểm tra — hàm thuần tách khỏi main
 docs/
-  kien-truc.md         Kiến trúc: state machine, effect, IPC, vòng đời cửa sổ
-  ghi-chu-ky-thuat.md  Những cái bẫy Windows/Electron đã gặp và cách xử lý
-  kiem-thu.md          Chiến lược kiểm thử, gồm cách nghiệm trên app chạy thật
+  architecture.md         Kiến trúc: state machine, effect, IPC, vòng đời cửa sổ
+  technical-notes.md  Những cái bẫy Windows/Electron đã gặp và cách xử lý
+  testing.md          Chiến lược kiểm thử, gồm cách nghiệm trên app chạy thật
 ```
 
 ### Nguyên tắc kiến trúc
@@ -327,7 +327,7 @@ Nhờ vậy:
 - Mọi lỗi thật gặp trong dự án này đều nằm ở **tầng Electron**, không phải engine — nên
   hàm nào tách ra khỏi Electron được thì chuyển sang `main-utils.js` để test.
 
-Đọc sâu hơn: [docs/kien-truc.md](docs/kien-truc.md).
+Đọc sâu hơn: [docs/architecture.md](docs/architecture.md).
 
 ---
 

@@ -1,3 +1,5 @@
+// Renderer for the main window: status, countdown and the settings panel.
+// Comments are English; strings the user reads stay Vietnamese (see CONTRIBUTING.md).
 const api = window.standup;
 const $ = (id) => document.getElementById(id);
 
@@ -17,9 +19,9 @@ function fmt(secs) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-// Cài đặt có thể đổi từ nơi khác (onboarding, lần sau là menu tray) trong khi
-// cửa sổ này đang ẩn. Đồng bộ lại form theo trạng thái phát về — nhưng KHÔNG
-// đụng vào ô người dùng đang gõ dở.
+// Settings can change elsewhere (onboarding, and later the tray menu) while this
+// window is hidden. Re-sync the form from the broadcast state — but do NOT touch the
+// field the user is currently typing in.
 function syncForm(s) {
   const set = (id, val, prop = 'value') => {
     const el = $(id);
@@ -48,18 +50,18 @@ function render(st) {
   document.body.dataset.phase = st.phase;
 }
 
-// Âm báo tổng hợp bằng Web Audio: không cần file nhạc, không vướng CSP, và
-// giữ được tinh thần "nhắc nhẹ nhàng" — hai nốt sine ngắn, âm lượng thấp.
+// The alert sound is synthesised with Web Audio: no audio file to ship, no CSP
+// trouble, and it keeps the "remind gently" spirit — two short sine notes, quiet.
 let audioCtx = null;
 
 async function playChime(kind) {
   try {
     audioCtx = audioCtx || new AudioContext();
-    // PHẢI đợi resume xong mới lên lịch: nếu lên lịch lúc context còn ngủ thì
-    // đến khi tỉnh, currentTime đã vượt qua các mốc đó và không nốt nào kêu.
+    // We MUST await resume before scheduling: notes scheduled while the context is
+    // suspended are already in the past by the time it wakes, so nothing plays.
     if (audioCtx.state === 'suspended') await audioCtx.resume();
-    console.log(`[am bao] ${kind}, trang thai AudioContext = ${audioCtx.state}`);
-    // Nhắc: đi lên (gọi chú ý). Hết giờ nghỉ: đi xuống (êm, khép lại).
+    console.log(`[chime] ${kind}, AudioContext state = ${audioCtx.state}`);
+    // Reminder: rising (asks for attention). Break over: falling (soft, closing).
     const notes = kind === 'breakOver' ? [880, 587.33] : [587.33, 880];
     notes.forEach((freq, i) => {
       const t0 = audioCtx.currentTime + i * 0.18;
@@ -67,7 +69,7 @@ async function playChime(kind) {
       const gain = audioCtx.createGain();
       osc.type = 'sine';
       osc.frequency.value = freq;
-      // Vào/ra mượt để không nghe thấy tiếng "cạch" ở đầu và cuối nốt.
+      // Fade in and out so there is no click at either end of the note.
       gain.gain.setValueAtTime(0.0001, t0);
       gain.gain.exponentialRampToValueAtTime(0.16, t0 + 0.03);
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
@@ -76,7 +78,7 @@ async function playChime(kind) {
       osc.stop(t0 + 0.36);
     });
   } catch (err) {
-    console.error('Không phát được âm báo:', err);
+    console.error('Chime failed to play:', err);
   }
 }
 
@@ -100,16 +102,17 @@ $('btn-save').addEventListener('click', async () => {
     deferFullscreen: $('in-defer-fullscreen').checked,
     breakOverlay: $('in-break-overlay').checked,
   });
-  // Bỏ focus trước khi đồng bộ, nếu không ô đang focus sẽ không nhận giá trị
-  // đã được kẹp về biên (ví dụ gõ 999 → lưu thành 240).
+  // Drop focus before syncing, otherwise the focused field keeps the value the user
+  // typed instead of the clamped one (type 999 → it is saved as 240).
   document.activeElement?.blur();
   syncForm(saved);
   $('save-msg').textContent = 'Đã lưu ✓';
   setTimeout(() => ($('save-msg').textContent = ''), 2000);
 });
 
-// Nút ⚙: xổ phần cài đặt ra/vào. Báo main để cửa sổ co/giãn cho vừa nội dung —
-// main giữ chiều cao chuẩn cho từng trạng thái, không đo lại pixel ở đây.
+// The gear button expands/collapses the settings panel. Tell main so the window can
+// resize to fit — main owns the canonical height for each state, we do not measure
+// pixels here.
 let settingsOpen = false;
 function toggleSettings() {
   settingsOpen = !settingsOpen;

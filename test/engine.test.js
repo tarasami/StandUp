@@ -1,15 +1,15 @@
-// Unit test cho engine — chạy: npm test
-// Mô phỏng tick từng giây như app thật; các bước nhảy thời gian lớn
-// chỉ dùng để kiểm tra chính chức năng phát hiện sleep/hibernate và chỉnh đồng hồ.
+// Unit tests for the engine — run with: npm test
+// Ticks second by second exactly like the real app; the large time jumps exist only
+// to exercise sleep/hibernate detection and clock adjustments.
 const assert = require('node:assert');
 const {
   Engine, clampSettings, DEFAULT_SETTINGS, REMIND_MESSAGES, BREAK_OVER_MESSAGES,
   IGNORED_RENAG_SECS, STRETCH_IDEAS,
 } = require('../electron/engine');
 
-// Mặc định test: tắt âm để đếm effect cho gọn; các test âm thanh bật riêng.
+// Test defaults: sound off so effect counting stays simple; sound tests enable it.
 const S = { intervalMins: 45, breakMins: 5, idleMins: 5, sound: false, autoStart: true, onboarded: true };
-let t = 1_750_000_000_000; // mốc epoch bất kỳ
+let t = 1_750_000_000_000; // an arbitrary epoch mark
 let passed = 0;
 
 function check(name, cond) {
@@ -18,7 +18,7 @@ function check(name, cond) {
   console.log(`  ✓ ${name}`);
 }
 
-// Tick từng giây, trả về mọi effect gom được.
+// Tick one second at a time, returning every effect collected.
 function run(e, seconds, idle = 0) {
   const fx = [];
   for (let i = 0; i < seconds; i++) fx.push(...e.tick((t += 1000), idle));
@@ -28,415 +28,416 @@ const has = (fx, type) => fx.some((x) => x.type === type);
 const count = (fx, type) => fx.filter((x) => x.type === type).length;
 const fresh = (s = S) => new Engine(s, t);
 
-console.log('1. Chu kỳ làm việc → nhắc nhở');
+console.log('1. Work cycle -> reminder');
 const e = fresh();
-check('khởi động ở trạng thái working', e.phase === 'working');
+check('starts in the working phase', e.phase === 'working');
 let fx = run(e, 44 * 60);
-check('44 phút: chưa nhắc', e.phase === 'working' && fx.length === 0);
+check('44 minutes: no reminder yet', e.phase === 'working' && fx.length === 0);
 fx = run(e, 61);
-check('sau 45 phút: chuyển sang reminding', e.phase === 'reminding');
-check('mở cửa sổ nhắc', has(fx, 'openReminder'));
-check('KHÔNG bắn toast Windows lúc nhắc (cửa sổ nhắc đã báo, tránh trùng)', !has(fx, 'notify'));
-check('chỉ nhắc ĐÚNG MỘT LẦN, không spam', count(fx, 'openReminder') === 1);
+check('after 45 minutes: switches to reminding', e.phase === 'reminding');
+check('opens the reminder window', has(fx, 'openReminder'));
+check('does NOT fire a Windows toast when reminding (the window already says it)', !has(fx, 'notify'));
+check('reminds EXACTLY ONCE, no spam', count(fx, 'openReminder') === 1);
 fx = run(e, 120);
-check('đứng yên ở reminding, không nhắc lại chồng chất', count(fx, 'openReminder') === 0);
+check('stays put in reminding, no piled-up repeat reminders', count(fx, 'openReminder') === 0);
 
-console.log('2. Nghỉ → hết giờ nghỉ → chu kỳ mới');
+console.log('2. Break -> break ends -> new cycle');
 e.takeBreak(t);
-check('bấm Nghỉ ngay → breaking', e.phase === 'breaking');
+check('pressing Break now -> breaking', e.phase === 'breaking');
 fx = run(e, 5 * 60 + 1);
-check('hết 5 phút nghỉ → working trở lại', e.phase === 'working');
-check('đóng cửa sổ nhắc + báo nghỉ xong', has(fx, 'closeReminder') && has(fx, 'notify'));
+check('after the 5 minute break -> back to working', e.phase === 'working');
+check('closes the reminder window and announces the break is over', has(fx, 'closeReminder') && has(fx, 'notify'));
 const st = e.status(t, 0);
-check('chu kỳ mới đếm từ ~45 phút', st.remainingSecs > 44 * 60 && st.remainingSecs <= 45 * 60);
+check('the new cycle counts from ~45 minutes', st.remainingSecs > 44 * 60 && st.remainingSecs <= 45 * 60);
 
-console.log('3. Idle detection — rời máy là coi như đã nghỉ');
+console.log('3. Idle detection — away from the machine counts as a break');
 fx = run(e, 1, 5 * 60);
-check('idle ≥ ngưỡng → chuyển sang idle', e.phase === 'idle');
+check('idle >= threshold -> switches to idle', e.phase === 'idle');
 run(e, 10, 5 * 60 + 5);
-check('vẫn idle khi còn rời máy', e.phase === 'idle');
+check('stays idle while still away', e.phase === 'idle');
 fx = run(e, 1, 1);
-check('quay lại máy → chu kỳ mới tự bắt đầu', e.phase === 'working');
-check('không notification khi quay lại (im lặng)', !has(fx, 'notify'));
+check('back at the machine -> a new cycle starts by itself', e.phase === 'working');
+check('no notification on returning (stays quiet)', !has(fx, 'notify'));
 
-console.log('3b. Biên chính xác của ngưỡng idle');
+console.log('3b. Exact boundary of the idle threshold');
 let b = fresh();
 run(b, 5, 4 * 60 + 59);
-check('idle 4:59 (dưới ngưỡng 5:00): vẫn working', b.phase === 'working');
+check('idle 4:59 (below the 5:00 threshold): still working', b.phase === 'working');
 run(b, 1, 5 * 60);
-check('idle đúng 5:00: chuyển idle', b.phase === 'idle');
+check('idle exactly 5:00: switches to idle', b.phase === 'idle');
 b = fresh();
 run(b, 1, 5 * 60);
 run(b, 1, 4); // BACK_ACTIVE_SECS = 3
-check('idle tụt về 4s: chưa coi là quay lại', b.phase === 'idle');
+check('idle back down to 4s: not yet counted as returned', b.phase === 'idle');
 run(b, 1, 3);
-check('idle tụt về 3s: đã quay lại → working', b.phase === 'working');
+check('idle back down to 3s: counted as returned -> working', b.phase === 'working');
 
-console.log('3c. Rời máy NGAY SAU khi được nhắc (không bấm nút nào)');
+console.log('3c. Walking away RIGHT AFTER being reminded (pressing no button)');
 b = fresh();
 run(b, 45 * 60 + 1);
-check('đang ở reminding', b.phase === 'reminding');
+check('currently in reminding', b.phase === 'reminding');
 fx = run(b, 1, 5 * 60);
-check('đứng dậy bỏ đi → tự ghi nhận đã nghỉ', b.phase === 'idle');
-check('cửa sổ nhắc tự đóng, không để treo trên màn hình', has(fx, 'closeReminder'));
+check('standing up and leaving -> recorded as a break taken', b.phase === 'idle');
+check('the reminder window closes itself instead of hanging on screen', has(fx, 'closeReminder'));
 
-console.log('3d. Rời máy trong lúc đang nghỉ');
+console.log('3d. Walking away during a break');
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
-fx = run(b, 5 * 60 + 1, 4 * 60); // đi vắng suốt giờ nghỉ
-check('giờ nghỉ vẫn chạy hết dù người dùng đi vắng', b.phase === 'working');
-check('vẫn báo hết giờ nghỉ', has(fx, 'notify'));
+fx = run(b, 5 * 60 + 1, 4 * 60); // away for the whole break
+check('the break still runs to completion while the user is away', b.phase === 'working');
+check('still announces the end of the break', has(fx, 'notify'));
 
-console.log('4. Sleep/hibernate — khoảng trống thời gian lớn');
+console.log('4. Sleep/hibernate — a large gap in time');
 run(e, 5, 0);
 e.tick((t += 30 * 60_000), 0);
-check('sau sleep 30 phút → chu kỳ mới, không nhắc', e.phase === 'working');
-check('deadline tính lại từ lúc tỉnh dậy', e.status(t, 0).remainingSecs > 44 * 60);
+check('after a 30 minute sleep -> new cycle, no reminder', e.phase === 'working');
+check('the deadline is recomputed from the moment of waking', e.status(t, 0).remainingSecs > 44 * 60);
 
 b = fresh();
 run(b, 45 * 60 + 1);
-fx = b.tick((t += 60 * 60_000), 0); // ngủ 1 tiếng khi đang hiện cửa sổ nhắc
-check('sleep lúc đang nhắc → chu kỳ mới', b.phase === 'working');
-check('cửa sổ nhắc được dọn, không treo lại sau khi tỉnh', has(fx, 'closeReminder'));
+fx = b.tick((t += 60 * 60_000), 0); // sleeps for an hour with the reminder on screen
+check('sleeping while reminding -> new cycle', b.phase === 'working');
+check('the reminder window is cleared away, not left hanging after waking', has(fx, 'closeReminder'));
 
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
 fx = b.tick((t += 60 * 60_000), 0);
-check('sleep lúc đang nghỉ → chu kỳ mới + dọn cửa sổ', b.phase === 'working' && has(fx, 'closeReminder'));
+check('sleeping during a break -> new cycle plus window cleanup', b.phase === 'working' && has(fx, 'closeReminder'));
 
 b = fresh();
 b.pause(t, null);
 b.tick((t += 60 * 60_000), 0);
-check('sleep lúc đang tạm dừng: KHÔNG tự bật lại', b.phase === 'paused');
+check('sleeping while paused: does NOT resume by itself', b.phase === 'paused');
 
 b = fresh();
-b.tick((t += 80 * 1000), 0); // gap 80s < SLEEP_GAP_SECS 90
-check('gap ngắn (80s, treo máy nhẹ) không bị nhầm là sleep', b.phase === 'working');
+b.tick((t += 80 * 1000), 0); // gap of 80s < SLEEP_GAP_SECS of 90
+check('a short gap (80s, a brief freeze) is not mistaken for sleep', b.phase === 'working');
 
-console.log('4b. Đồng hồ hệ thống bị chỉnh LÙI (NTP sync / đổi múi giờ)');
+console.log('4b. System clock moved BACKWARDS (NTP sync / time zone change)');
 b = fresh();
 run(b, 60);
-t -= 2 * 3600_000; // lùi 2 tiếng
+t -= 2 * 3600_000; // back two hours
 b.tick(t, 0);
 const backSt = b.status(t, 0);
-check('không im lặng vô thời hạn: deadline kéo về ≤ 1 chu kỳ', backSt.remainingSecs <= 45 * 60);
-check('vẫn đếm ngược bình thường', backSt.remainingSecs > 0);
+check('never goes silent indefinitely: the deadline is pulled back to <= one cycle', backSt.remainingSecs <= 45 * 60);
+check('still counting down normally', backSt.remainingSecs > 0);
 run(b, 45 * 60 + 1);
-check('vẫn nhắc được sau khi đồng hồ bị chỉnh lùi', b.phase === 'reminding');
+check('still able to remind after the clock went backwards', b.phase === 'reminding');
 
 b = fresh();
 b.pause(t, 60);
-t -= 5 * 3600_000; // lùi 5 tiếng khi đang tạm dừng
+t -= 5 * 3600_000; // back five hours while paused
 b.tick(t, 0);
-check('tạm dừng có hẹn giờ không bị kẹt vĩnh viễn', b.status(t, 0).remainingSecs <= 60 * 60);
+check('a timed pause does not get stuck forever', b.status(t, 0).remainingSecs <= 60 * 60);
 
-console.log('5. Hoãn & bỏ qua');
+console.log('5. Snooze and skip');
 e.triggerReminder(t);
 fx = e.snooze(t);
-check('hoãn → working, đóng cửa sổ', e.phase === 'working' && has(fx, 'closeReminder'));
-check('hoãn đúng 5 phút', e.status(t, 0).remainingSecs === 5 * 60);
+check('snooze -> working, window closed', e.phase === 'working' && has(fx, 'closeReminder'));
+check('snoozes for exactly 5 minutes', e.status(t, 0).remainingSecs === 5 * 60);
 run(e, 5 * 60 + 1);
-check('hết 5 phút hoãn → nhắc lại', e.phase === 'reminding');
+check('after the 5 minute snooze -> reminds again', e.phase === 'reminding');
 e.snooze(t);
 run(e, 5 * 60 + 1);
-check('hoãn nhiều lần liên tiếp vẫn hoạt động', e.phase === 'reminding');
+check('snoozing several times in a row still works', e.phase === 'reminding');
 fx = e.skip(t);
-check('bỏ qua → chu kỳ mới đầy đủ', e.phase === 'working' && e.status(t, 0).remainingSecs === 45 * 60);
-// Nút "Làm việc tiếp" ở cửa sổ nghỉ cũng gọi skip() — nhánh này trước giờ chưa
-// có test, mà skip() lại vừa được thêm nhánh xử lý tạm dừng.
+check('skip -> a full new cycle', e.phase === 'working' && e.status(t, 0).remainingSecs === 45 * 60);
+// The "Back to work" button on the break screen also calls skip() — this branch had
+// no test until now, and skip() had just gained its paused-state handling.
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 30);
 fx = b.skip(t);
-check('bỏ qua khi ĐANG NGHỈ → cắt giờ nghỉ, vào chu kỳ mới',
+check('skipping DURING A BREAK -> cuts the break short, starts a new cycle',
   b.phase === 'working' && b.status(t, 0).remainingSecs === 45 * 60 && has(fx, 'closeReminder'));
 b = fresh();
 b.breakNow(t);
 run(b, 30);
 b.skip(t);
-check('nghỉ từ menu tray rồi bỏ qua cũng về chu kỳ mới sạch', b.phase === 'working');
+check('a tray-menu break then skip also lands in a clean new cycle', b.phase === 'working');
 
-console.log('5b. Hành động sai ngữ cảnh không làm hỏng trạng thái');
+console.log('5b. Out-of-context actions do not corrupt the state');
 b = fresh();
-check('bấm Nghỉ khi đang working: bị bỏ qua', b.takeBreak(t).length === 0 && b.phase === 'working');
-check('hoãn khi đang working: bị bỏ qua', b.snooze(t).length === 0 && b.phase === 'working');
-check('bỏ qua khi đang working: bị bỏ qua', b.skip(t).length === 0 && b.phase === 'working');
+check('pressing Break while working: ignored', b.takeBreak(t).length === 0 && b.phase === 'working');
+check('snooze while working: ignored', b.snooze(t).length === 0 && b.phase === 'working');
+check('skip while working: ignored', b.skip(t).length === 0 && b.phase === 'working');
 b.pause(t, null);
-check('Tiếp tục khi đang paused → working', b.resume(t) && b.phase === 'working' || b.phase === 'working');
-check('Tiếp tục khi đang working: vô hại', (b.resume(t), b.phase === 'working'));
+check('Resume while paused -> working', b.resume(t) && b.phase === 'working' || b.phase === 'working');
+check('Resume while working: harmless', (b.resume(t), b.phase === 'working'));
 
-console.log('5c. Nghỉ ngay từ tray ở mọi trạng thái');
+console.log('5c. Break now from the tray, from every phase');
 for (const setup of ['working', 'idle', 'paused']) {
   b = fresh();
   if (setup === 'idle') run(b, 1, 5 * 60);
   if (setup === 'paused') b.pause(t, null);
   fx = b.breakNow(t);
-  check(`"Nghỉ ngay" từ ${setup} → breaking + mở cửa sổ`, b.phase === 'breaking' && has(fx, 'openReminder'));
+  check(`"Break now" from ${setup} -> breaking plus a window`, b.phase === 'breaking' && has(fx, 'openReminder'));
 }
 
-console.log('5d. Lời nhắc bị phớt lờ quá lâu (vẫn ngồi máy) → tự hoãn, KHÔNG kẹt');
-// Trước đây: phớt lờ một popup khi vẫn đang hoạt động = app im lặng vĩnh viễn,
-// vì 'reminding' chỉ thoát khi người dùng bấm nút hoặc rời máy (thành idle).
+console.log('5d. A reminder ignored too long (user still present) -> self-snooze, NEVER stuck');
+// It used to be: ignoring one popup while still active = the app goes silent forever,
+// because 'reminding' was only left by pressing a button or walking away (to idle).
 b = fresh();
 run(b, 45 * 60 + 1);
-check('đang ở reminding', b.phase === 'reminding');
-run(b, IGNORED_RENAG_SECS - 5); // sát ngưỡng, vẫn hoạt động (idle=0)
-check(`chưa tới ${IGNORED_RENAG_SECS}s: vẫn giữ nguyên cửa sổ nhắc`, b.phase === 'reminding');
-fx = run(b, 6); // vượt ngưỡng
-check('quá ngưỡng phớt lờ → tự về working, không kẹt ở reminding', b.phase === 'working');
-check('cửa sổ nhắc được đóng khi tự hoãn', has(fx, 'closeReminder'));
-check('KHÔNG bung popup mới (chỉ cuộn đi, im lặng)', !has(fx, 'openReminder'));
-check('tự hoãn = nhắc lại sau đúng 5 phút (như bấm Hoãn)',
+check('currently in reminding', b.phase === 'reminding');
+run(b, IGNORED_RENAG_SECS - 5); // just short of the threshold, still active (idle=0)
+check(`before ${IGNORED_RENAG_SECS}s: the reminder window stays up`, b.phase === 'reminding');
+fx = run(b, 6); // past the threshold
+check('past the ignore threshold -> returns to working by itself, never stuck in reminding', b.phase === 'working');
+check('the reminder window is closed on self-snooze', has(fx, 'closeReminder'));
+check('does NOT pop a new window (it just goes away, quietly)', !has(fx, 'openReminder'));
+check('self-snooze = remind again in exactly 5 minutes (as if Snooze was pressed)',
   b.status(t, 0).remainingSecs > 4 * 60 && b.status(t, 0).remainingSecs <= 5 * 60);
 run(b, 5 * 60 + 1);
-check('sau khi tự hoãn, 5 phút sau nhắc lại bình thường', b.phase === 'reminding');
+check('after a self-snooze, it reminds again 5 minutes later as normal', b.phase === 'reminding');
 
-// Rời máy được ƯU TIÊN hơn tự-hoãn: đứng dậy đi thì thành idle chứ không phải
-// working — không được nhầm "đã nghỉ" thành "hoãn để nhắc lại".
+// Walking away takes PRIORITY over the self-snooze: getting up must land in idle, not
+// working — "took a break" must never be mistaken for "snoozed for later".
 b = fresh();
 run(b, 45 * 60 + 1);
-fx = run(b, 1, 5 * 60); // idle vọt lên ngay khi vừa vào reminding
-check('vừa vào reminding đã rời máy → idle (không nhầm thành tự hoãn)', b.phase === 'idle');
+fx = run(b, 1, 5 * 60); // idle spikes right as we enter reminding
+check('leaving right after entering reminding -> idle (not mistaken for a self-snooze)', b.phase === 'idle');
 
-// Hồi quy song sinh với skip(): lời nhắc THỬ bắn giữa lúc tạm dừng rồi bị bỏ mặc
-// quá lâu → phải QUAY LẠI tạm dừng, không âm thầm cho chạy tiếp.
+// Twin regression of skip(): a TEST reminder fired while paused and then ignored for
+// too long must RETURN to paused, never quietly resume.
 b = fresh();
 b.pause(t, null);
 b.triggerReminder(t);
-check('thử nhắc lúc tạm dừng: đang hiện cửa sổ nhắc', b.phase === 'reminding');
+check('test reminder while paused: the reminder window is up', b.phase === 'reminding');
 fx = run(b, IGNORED_RENAG_SECS + 2);
-check('bỏ mặc lời nhắc thử quá lâu → quay lại tạm dừng, KHÔNG tự chạy', b.phase === 'paused');
-check('có đóng cửa sổ nhắc khi quay lại tạm dừng', has(fx, 'closeReminder'));
+check('ignoring a test reminder too long -> back to paused, does NOT start running', b.phase === 'paused');
+check('the reminder window is closed on the way back to paused', has(fx, 'closeReminder'));
 run(b, 10 * 60);
-check('vẫn nằm im ở tạm dừng vô thời hạn', b.phase === 'paused');
+check('still sitting quietly in the indefinite pause', b.phase === 'paused');
 
-// Tạm dừng CÓ HẸN GIỜ cũng phải giữ nguyên mốc hẹn, không bị tự-hoãn xoá.
+// A TIMED pause must keep its deadline too, not have it wiped by the self-snooze.
 b = fresh();
 b.pause(t, 60);
 b.triggerReminder(t);
 run(b, IGNORED_RENAG_SECS + 2);
-check('tạm dừng có hẹn giờ: bỏ mặc lời nhắc thử → vẫn tạm dừng, còn nguyên mốc hẹn',
+check('timed pause: ignoring a test reminder -> still paused, deadline intact',
   b.phase === 'paused' && b.status(t, 0).remainingSecs > 55 * 60);
 
-console.log('5e. Hoãn nhắc khi Windows bận (toàn màn hình/trình chiếu/game)');
-// Tới giờ nhắc nhưng canNotify=false → GIỮ working, không bung đè lên full-screen.
+console.log('5e. Holding reminders back while Windows is busy (full-screen/presentation/game)');
+// The deadline passes but canNotify=false -> STAY in working, never pop over full-screen.
 b = fresh();
-run(b, 45 * 60 - 1); // còn 1 giây là tới hạn, vẫn working
-check('sát giờ, chưa tới: working', b.phase === 'working');
+run(b, 45 * 60 - 1); // one second short of the deadline, still working
+check('just short of the deadline: working', b.phase === 'working');
 fx = [];
-for (let i = 0; i < 120; i++) fx.push(...b.tick((t += 1000), 0, false)); // quá hạn 2 phút khi đang bận
-check('đang full-screen: tới giờ vẫn KHÔNG bung lời nhắc', b.phase === 'working');
-check('không có openReminder nào khi đang bận', !has(fx, 'openReminder'));
-// Rảnh trở lại → nhắc NGAY ở tick kế.
+for (let i = 0; i < 120; i++) fx.push(...b.tick((t += 1000), 0, false)); // 2 minutes overdue while busy
+check('while full-screen: the deadline passes and NO reminder pops', b.phase === 'working');
+check('not a single openReminder while busy', !has(fx, 'openReminder'));
+// Free again -> remind on the very next tick.
 fx = b.tick((t += 1000), 0, true);
-check('thoát full-screen → bung lời nhắc ngay', b.phase === 'reminding' && has(fx, 'openReminder'));
+check('leaving full-screen -> the reminder pops immediately', b.phase === 'reminding' && has(fx, 'openReminder'));
 
-// Bỏ trống canNotify (mặc định true) = giữ nguyên hành vi cũ.
+// Omitting canNotify (defaults to true) = the old behaviour, unchanged.
 b = fresh();
 fx = [];
 for (let i = 0; i < 45 * 60 + 1; i++) fx.push(...b.tick((t += 1000), 0));
-check('bỏ trống canNotify: mặc định vẫn nhắc như cũ', b.phase === 'reminding' && has(fx, 'openReminder'));
+check('canNotify omitted: still reminds exactly as before', b.phase === 'reminding' && has(fx, 'openReminder'));
 
-// Đang chờ-vì-bận mà người dùng rời máy → idle vẫn được ưu tiên (đã nghỉ thật).
+// Waiting-because-busy, then the user leaves -> idle still wins (a real break happened).
 b = fresh();
-for (let i = 0; i < 45 * 60 + 5; i++) b.tick((t += 1000), 0, false); // quá hạn khi đang bận
-check('quá hạn nhưng đang bận: vẫn ở working (đang chờ rảnh)', b.phase === 'working');
-b.tick((t += 1000), 6 * 60, false); // rời máy khi đang chờ
-check('đang chờ mà rời máy → sang idle (không kẹt ở working)', b.phase === 'idle');
+for (let i = 0; i < 45 * 60 + 5; i++) b.tick((t += 1000), 0, false); // overdue while busy
+check('overdue but busy: still working (waiting for a free moment)', b.phase === 'working');
+b.tick((t += 1000), 6 * 60, false); // leaves while we are waiting
+check('leaving while waiting -> idle (never stuck in working)', b.phase === 'idle');
 
-// Lời nhắc đã HOÃN, tới hạn lúc đang bận cũng phải khoan bung.
+// A SNOOZED reminder falling due while busy must hold off too.
 b = fresh();
 b.triggerReminder(t);
-b.snooze(t); // hẹn lại 5 phút, về working
+b.snooze(t); // 5 minutes later, back to working
 for (let i = 0; i < 5 * 60 + 30; i++) b.tick((t += 1000), 0, false);
-check('lời nhắc đã hoãn, tới hạn lúc đang bận → vẫn khoan bung', b.phase === 'working');
+check('a snoozed reminder falling due while busy -> still holds off', b.phase === 'working');
 fx = b.tick((t += 1000), 0, true);
-check('hết bận → lời nhắc đã hoãn bung ra', b.phase === 'reminding' && has(fx, 'openReminder'));
+check('no longer busy -> the snoozed reminder pops', b.phase === 'reminding' && has(fx, 'openReminder'));
 
-console.log('6. Tạm dừng');
+console.log('6. Pause');
 b = fresh();
 b.pause(t, 60);
-check('tạm dừng 60 phút → paused', b.phase === 'paused');
+check('pause for 60 minutes -> paused', b.phase === 'paused');
 run(b, 30, 0);
-check('trong thời gian tạm dừng: giữ nguyên paused', b.phase === 'paused');
+check('during the pause: stays paused', b.phase === 'paused');
 run(b, 5, 10 * 60);
-check('idle khi đang tạm dừng: vẫn paused, không nhảy sang idle', b.phase === 'paused');
+check('going idle while paused: stays paused, does not jump to idle', b.phase === 'paused');
 b.tick((t += 61 * 60_000), 0);
-check('hết giờ tạm dừng → tự chạy lại', b.phase === 'working');
+check('when the pause expires -> resumes by itself', b.phase === 'working');
 b.pause(t, null);
 b.tick((t += 8 * 3600_000), 0);
-check('tạm dừng vô thời hạn: không tự chạy lại (kể cả sau 8 giờ)', b.phase === 'paused');
+check('indefinite pause: never resumes by itself (not even after 8 hours)', b.phase === 'paused');
 b.resume(t);
-check('bấm Tiếp tục → chu kỳ mới', b.phase === 'working');
+check('pressing Resume -> a new cycle', b.phase === 'working');
 
 b = fresh();
 b.triggerReminder(t);
 fx = b.pause(t, 60);
-check('tạm dừng lúc đang nhắc → dọn cửa sổ nhắc', has(fx, 'closeReminder') && b.phase === 'paused');
+check('pausing while reminding -> clears the reminder window', has(fx, 'closeReminder') && b.phase === 'paused');
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
 fx = b.pause(t, 60);
-check('tạm dừng lúc đang nghỉ → dọn cửa sổ nhắc', has(fx, 'closeReminder') && b.phase === 'paused');
-// Hồi quy: "Thử nhắc nhở" từng xoá pauseUntil, nên thử nhắc lúc đang tạm dừng
-// là mất luôn trạng thái tạm dừng — app âm thầm chạy lại sau lưng người dùng.
+check('pausing during a break -> clears the reminder window', has(fx, 'closeReminder') && b.phase === 'paused');
+// Regression: "Test reminder" used to clear pauseUntil, so testing a reminder while
+// paused lost the paused state — the app quietly started running behind the user.
 b = fresh();
 b.pause(t, null);
 b.triggerReminder(t);
-check('thử nhắc lúc đang tạm dừng: cửa sổ nhắc vẫn hiện', b.phase === 'reminding');
+check('test reminder while paused: the reminder window shows', b.phase === 'reminding');
 b.skip(t);
-check('bỏ qua lời nhắc thử → QUAY LẠI tạm dừng, không tự chạy tiếp', b.phase === 'paused');
+check('skipping a test reminder -> RETURNS to paused, does not run on', b.phase === 'paused');
 run(b, 5 * 60);
-check('vẫn nằm im ở tạm dừng vô thời hạn sau 5 phút', b.phase === 'paused');
+check('still sitting quietly in the indefinite pause after 5 minutes', b.phase === 'paused');
 b = fresh();
 b.pause(t, 60);
 b.triggerReminder(t);
 b.skip(t);
-check('tạm dừng có hẹn giờ cũng được trả lại nguyên vẹn',
+check('a timed pause is handed back intact too',
   b.phase === 'paused' && b.status(t, 0).remainingSecs > 59 * 60);
 run(b, 60 * 60 + 1);
-check('hết hạn tạm dừng thì tự chạy lại bình thường', b.phase === 'working');
-// Ngược lại: hưởng ứng lời nhắc thử là chủ động, tạm dừng coi như bỏ.
+check('when the pause expires it resumes normally', b.phase === 'working');
+// The opposite: responding to a test reminder is deliberate, so the pause is dropped.
 b = fresh();
 b.pause(t, null);
 b.triggerReminder(t);
 b.takeBreak(t);
-check('bấm Nghỉ ngay ở lời nhắc thử → nghỉ thật, bỏ tạm dừng', b.phase === 'breaking');
+check('pressing Break now on a test reminder -> a real break, pause dropped', b.phase === 'breaking');
 run(b, 5 * 60 + 1);
-check('nghỉ xong về làm việc, KHÔNG quay lại tạm dừng', b.phase === 'working');
+check('after the break, back to work and NOT back to paused', b.phase === 'working');
 b = fresh();
 b.pause(t, null);
 b.triggerReminder(t);
 b.snooze(t);
-check('bấm Hoãn ở lời nhắc thử → hẹn lại 5 phút, bỏ tạm dừng', b.phase === 'working');
+check('pressing Snooze on a test reminder -> 5 minutes later, pause dropped', b.phase === 'working');
 run(b, 5 * 60 + 1);
-check('hoãn xong nhắc lại đúng hẹn', b.phase === 'reminding');
-// Đường đi bình thường (không tạm dừng) không được đổi hành vi.
+check('after the snooze it reminds on schedule', b.phase === 'reminding');
+// The ordinary path (not paused) must not change behaviour.
 b = fresh();
 b.triggerReminder(t);
 b.skip(t);
-check('không tạm dừng: bỏ qua vẫn bắt đầu chu kỳ mới như cũ',
+check('not paused: skip still begins a new cycle as before',
   b.phase === 'working' && b.status(t, 0).remainingSecs === 45 * 60);
 
-console.log('7. Đổi cài đặt giữa chừng');
+console.log('7. Changing settings mid-cycle');
 b = fresh();
 run(b, 10 * 60);
 b.updateSettings(t, { intervalMins: 30, breakMins: 5, idleMins: 5 });
-check('rút interval 45→30: deadline co lại ngay', b.status(t, 0).remainingSecs <= 30 * 60);
+check('shortening the interval 45->30: the deadline contracts immediately', b.status(t, 0).remainingSecs <= 30 * 60);
 b = fresh();
 run(b, 10 * 60);
 b.updateSettings(t, { intervalMins: 60, breakMins: 5, idleMins: 5 });
-check('nới interval 45→60: chu kỳ đang chạy không bị kéo dài đột ngột',
+check('lengthening the interval 45->60: the running cycle is not suddenly extended',
   b.status(t, 0).remainingSecs <= 35 * 60);
 run(b, 35 * 60 + 1);
-check('chu kỳ hiện tại kết thúc bình thường', b.phase === 'reminding');
+check('the current cycle ends normally', b.phase === 'reminding');
 b.skip(t);
-check('chu kỳ SAU mới dùng interval 60 phút', b.status(t, 0).remainingSecs === 60 * 60);
+check('only the NEXT cycle uses the 60 minute interval', b.status(t, 0).remainingSecs === 60 * 60);
 b = fresh();
 b.updateSettings(t, { intervalMins: 45, breakMins: 10, idleMins: 5 });
 b.triggerReminder(t);
 b.takeBreak(t);
-check('đổi thời lượng nghỉ 5→10 có hiệu lực ngay lần nghỉ kế', b.status(t, 0).remainingSecs === 10 * 60);
-// Hồi quy: updateSettings từng chỉ kẹp deadline ở nhánh WORKING, nên rút ngắn
-// thời gian nghỉ lúc ĐANG nghỉ thì lượt nghỉ hiện tại vẫn chạy theo mốc cũ dài hơn.
+check('changing the break length 5->10 takes effect on the very next break', b.status(t, 0).remainingSecs === 10 * 60);
+// Regression: updateSettings used to clamp the deadline only in the WORKING branch, so
+// shortening the break length DURING a break left the current break on the old, longer mark.
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 60);
 b.updateSettings(t, { ...S, breakMins: 2 });
-check('đang nghỉ mà rút 5→2 phút: mốc nghỉ co lại ngay', b.status(t, 0).remainingSecs <= 2 * 60);
+check('mid-break, shortening 5->2 minutes: the break deadline contracts at once', b.status(t, 0).remainingSecs <= 2 * 60);
 run(b, 2 * 60 + 1);
-check('lượt nghỉ vừa rút ngắn kết thúc đúng hạn', b.phase === 'working');
+check('the just-shortened break ends on time', b.phase === 'working');
 b = fresh();
 b.triggerReminder(t);
 b.takeBreak(t);
 run(b, 60);
 b.updateSettings(t, { ...S, breakMins: 30 });
-check('đang nghỉ mà nới 5→30 phút: lượt nghỉ đang chạy không bị kéo dài',
+check('mid-break, lengthening 5->30 minutes: the running break is not extended',
   b.status(t, 0).remainingSecs <= 4 * 60);
 
-console.log('8. clampSettings — chống dữ liệu rác từ UI và file settings.json');
+console.log('8. clampSettings — defence against garbage from the UI and from settings.json');
 const c = clampSettings;
 const kept = c({ intervalMins: 30, breakMins: 3, idleMins: 2 });
-check('giá trị hợp lệ giữ nguyên',
+check('valid values are kept as they are',
   kept.intervalMins === 30 && kept.breakMins === 3 && kept.idleMins === 2);
-check('interval quá nhỏ (0) → kẹp lên 5', c({ intervalMins: 0 }).intervalMins === 5);
-check('interval âm → kẹp lên 5', c({ intervalMins: -99 }).intervalMins === 5);
-check('interval quá lớn (9999) → kẹp xuống 240', c({ intervalMins: 9999 }).intervalMins === 240);
-check('chuỗi rỗng → kẹp về biên dưới', c({ intervalMins: '' }).intervalMins === 5);
-check('chữ cái → về mặc định 45', c({ intervalMins: 'abc' }).intervalMins === 45);
-check('null → mặc định', c({ intervalMins: null }).intervalMins === 5);
-check('undefined → mặc định 45', c({}).intervalMins === 45);
-check('object rỗng/không có gì → toàn mặc định',
+check('interval too small (0) -> clamped up to 5', c({ intervalMins: 0 }).intervalMins === 5);
+check('negative interval -> clamped up to 5', c({ intervalMins: -99 }).intervalMins === 5);
+check('interval too large (9999) -> clamped down to 240', c({ intervalMins: 9999 }).intervalMins === 240);
+check('empty string -> clamped to the lower bound', c({ intervalMins: '' }).intervalMins === 5);
+check('letters -> back to the default of 45', c({ intervalMins: 'abc' }).intervalMins === 45);
+check('null -> default', c({ intervalMins: null }).intervalMins === 5);
+check('undefined -> default of 45', c({}).intervalMins === 45);
+check('empty object / nothing at all -> all defaults',
   JSON.stringify(c(undefined)) === JSON.stringify(DEFAULT_SETTINGS));
-check('file JSON hỏng (null) → toàn mặc định',
+check('broken JSON file (null) -> all defaults',
   JSON.stringify(c(null)) === JSON.stringify(DEFAULT_SETTINGS));
-check('số thập phân được làm tròn', c({ intervalMins: 30.7 }).intervalMins === 31);
-check('Infinity → mặc định', c({ intervalMins: Infinity }).intervalMins === 45);
-check('NaN → mặc định', c({ intervalMins: NaN }).intervalMins === 45);
-check('breakMins kẹp trong 1..60', c({ breakMins: 999 }).breakMins === 60 && c({ breakMins: 0 }).breakMins === 1);
-check('idleMins kẹp trong 1..60', c({ idleMins: 999 }).idleMins === 60 && c({ idleMins: 0 }).idleMins === 1);
-check('vị trí "bottom-right" giữ nguyên', c({ reminderPosition: 'bottom-right' }).reminderPosition === 'bottom-right');
-check('vị trí "center" giữ nguyên', c({ reminderPosition: 'center' }).reminderPosition === 'center');
-check('vị trí lạ (top-left, chưa hỗ trợ) → mặc định bottom-right',
+check('decimals are rounded', c({ intervalMins: 30.7 }).intervalMins === 31);
+check('Infinity -> default', c({ intervalMins: Infinity }).intervalMins === 45);
+check('NaN -> default', c({ intervalMins: NaN }).intervalMins === 45);
+check('breakMins clamped into 1..60', c({ breakMins: 999 }).breakMins === 60 && c({ breakMins: 0 }).breakMins === 1);
+check('idleMins clamped into 1..60', c({ idleMins: 999 }).idleMins === 60 && c({ idleMins: 0 }).idleMins === 1);
+check('position "bottom-right" is kept', c({ reminderPosition: 'bottom-right' }).reminderPosition === 'bottom-right');
+check('position "center" is kept', c({ reminderPosition: 'center' }).reminderPosition === 'center');
+check('an unknown position (top-left, unsupported) -> default bottom-right',
   c({ reminderPosition: 'top-left' }).reminderPosition === 'bottom-right');
-check('vị trí rác → mặc định', c({ reminderPosition: 'xyz' }).reminderPosition === 'bottom-right');
-check('vị trí sai kiểu (số) → mặc định', c({ reminderPosition: 5 }).reminderPosition === 'bottom-right');
-check('thiếu vị trí → mặc định bottom-right', c({}).reminderPosition === 'bottom-right');
-// Cài đặt sau khi làm sạch phải luôn dùng được cho Engine
+check('garbage position -> default', c({ reminderPosition: 'xyz' }).reminderPosition === 'bottom-right');
+check('position of the wrong type (a number) -> default', c({ reminderPosition: 5 }).reminderPosition === 'bottom-right');
+check('missing position -> default bottom-right', c({}).reminderPosition === 'bottom-right');
+// Settings that came out of the sanitiser must always be usable by the Engine.
 const clamped = c({ intervalMins: '', breakMins: 'x', idleMins: -5 });
 b = new Engine(clamped, t);
 run(b, clamped.intervalMins * 60 + 1);
-check('Engine chạy đúng với cài đặt vừa được làm sạch', b.phase === 'reminding');
+check('the Engine runs correctly on freshly sanitised settings', b.phase === 'reminding');
 
-console.log('8b. Cài đặt bật/tắt (bool) — khởi động cùng Windows, âm thanh, onboarding');
-check('mặc định: âm bật, autoStart bật, CHƯA onboarding',
+console.log('8b. Boolean settings — start with Windows, sound, onboarding');
+check('defaults: sound on, autoStart on, onboarding NOT done',
   DEFAULT_SETTINGS.sound === true && DEFAULT_SETTINGS.autoStart === true
   && DEFAULT_SETTINGS.onboarded === false);
-check('bool hợp lệ giữ nguyên', c({ sound: false }).sound === false && c({ autoStart: false }).autoStart === false);
-check('chuỗi "false" KHÔNG bị hiểu nhầm thành true → về mặc định', c({ sound: 'false' }).sound === true);
-check('số 0 không phải bool → về mặc định', c({ sound: 0 }).sound === true);
-check('null → về mặc định', c({ onboarded: null }).onboarded === false);
-check('onboarded=true được giữ (không bắt xem lại onboarding)', c({ onboarded: true }).onboarded === true);
-check('file cũ (thiếu trường mới) vẫn nạp được, điền mặc định',
+check('valid booleans are kept', c({ sound: false }).sound === false && c({ autoStart: false }).autoStart === false);
+check('the string "false" is NOT misread as true -> falls back to the default', c({ sound: 'false' }).sound === true);
+check('the number 0 is not a boolean -> falls back to the default', c({ sound: 0 }).sound === true);
+check('null -> falls back to the default', c({ onboarded: null }).onboarded === false);
+check('onboarded=true is preserved (never re-runs onboarding)', c({ onboarded: true }).onboarded === true);
+check('an old file (missing the newer fields) still loads, defaults filled in',
   c({ intervalMins: 30, breakMins: 5, idleMins: 5 }).sound === true);
-// deferFullscreen: mặc định BẬT (hoãn khi full màn hình); tắt được; rác → mặc định.
-check('mặc định deferFullscreen BẬT', DEFAULT_SETTINGS.deferFullscreen === true);
-check('deferFullscreen tắt được (false giữ nguyên)', c({ deferFullscreen: false }).deferFullscreen === false);
-check('deferFullscreen sai kiểu (chuỗi "false") → về mặc định true', c({ deferFullscreen: 'false' }).deferFullscreen === true);
-check('file cũ thiếu deferFullscreen → mặc định BẬT', c({ intervalMins: 30 }).deferFullscreen === true);
-// breakOverlay: mặc định BẬT (giờ nghỉ che màn hình kèm động tác); tắt được.
-check('mặc định breakOverlay BẬT', DEFAULT_SETTINGS.breakOverlay === true);
-check('breakOverlay tắt được (false giữ nguyên)', c({ breakOverlay: false }).breakOverlay === false);
-check('breakOverlay sai kiểu (chuỗi "false") → về mặc định true', c({ breakOverlay: 'false' }).breakOverlay === true);
-check('file cũ thiếu breakOverlay → mặc định BẬT', c({ intervalMins: 30 }).breakOverlay === true);
+// deferFullscreen: ON by default (hold back during full-screen); can be turned off;
+// garbage -> default.
+check('deferFullscreen defaults to ON', DEFAULT_SETTINGS.deferFullscreen === true);
+check('deferFullscreen can be turned off (false is kept)', c({ deferFullscreen: false }).deferFullscreen === false);
+check('deferFullscreen of the wrong type (the string "false") -> back to the default true', c({ deferFullscreen: 'false' }).deferFullscreen === true);
+check('an old file without deferFullscreen -> defaults to ON', c({ intervalMins: 30 }).deferFullscreen === true);
+// breakOverlay: ON by default (break takes over the screen with a stretch); can be off.
+check('breakOverlay defaults to ON', DEFAULT_SETTINGS.breakOverlay === true);
+check('breakOverlay can be turned off (false is kept)', c({ breakOverlay: false }).breakOverlay === false);
+check('breakOverlay of the wrong type (the string "false") -> back to the default true', c({ breakOverlay: 'false' }).breakOverlay === true);
+check('an old file without breakOverlay -> defaults to ON', c({ intervalMins: 30 }).breakOverlay === true);
 
-console.log('8c. Âm thanh — chỉ phát khi người dùng bật');
+console.log('8c. Sound — only plays when the user enabled it');
 b = new Engine({ ...S, sound: true }, t);
 fx = run(b, 45 * 60 + 1);
-check('bật âm: có effect sound khi nhắc', has(fx, 'sound'));
-check('đúng loại âm "remind"', fx.find((x) => x.type === 'sound').kind === 'remind');
+check('sound on: a sound effect accompanies the reminder', has(fx, 'sound'));
+check('the sound kind is "remind"', fx.find((x) => x.type === 'sound').kind === 'remind');
 b.takeBreak(t);
 fx = run(b, 5 * 60 + 1);
-check('bật âm: có âm báo hết giờ nghỉ', has(fx, 'sound'));
-check('đúng loại âm "breakOver"', fx.find((x) => x.type === 'sound').kind === 'breakOver');
+check('sound on: there is a chime at the end of the break', has(fx, 'sound'));
+check('the sound kind is "breakOver"', fx.find((x) => x.type === 'sound').kind === 'breakOver');
 b = new Engine({ ...S, sound: false }, t);
 fx = run(b, 45 * 60 + 1);
-check('tắt âm: KHÔNG có effect sound khi nhắc', !has(fx, 'sound'));
-check('tắt âm vẫn mở cửa sổ nhắc bình thường', has(fx, 'openReminder'));
+check('sound off: NO sound effect with the reminder', !has(fx, 'sound'));
+check('sound off still opens the reminder window as normal', has(fx, 'openReminder'));
 b.takeBreak(t);
 fx = run(b, 5 * 60 + 1);
-check('tắt âm: không âm báo hết giờ nghỉ', !has(fx, 'sound'));
+check('sound off: no chime at the end of the break', !has(fx, 'sound'));
 
-console.log('8d. Đa dạng lời nhắc — không lặp câu, thay đúng số phút');
-check(`có đủ bộ câu nhắc (${REMIND_MESSAGES.length} câu)`, REMIND_MESSAGES.length >= 10);
-check(`có bộ câu báo hết giờ nghỉ (${BREAK_OVER_MESSAGES.length} câu)`, BREAK_OVER_MESSAGES.length >= 3);
-check('mọi câu nhắc đều có chỗ chèn số phút',
+console.log('8d. Variety of reminder texts — no repeats, correct minute substitution');
+check(`the reminder set is complete (${REMIND_MESSAGES.length} texts)`, REMIND_MESSAGES.length >= 10);
+check(`there is a break-over set (${BREAK_OVER_MESSAGES.length} texts)`, BREAK_OVER_MESSAGES.length >= 3);
+check('every reminder text has a slot for the minute count',
   REMIND_MESSAGES.every((m) => m.body.includes('{mins}')));
-check('không câu nhắc nào trùng nhau',
+check('no two reminder texts are identical',
   new Set(REMIND_MESSAGES.map((m) => m.title)).size === REMIND_MESSAGES.length);
 b = fresh();
 const titles = [];
@@ -445,17 +446,17 @@ for (let i = 0; i < REMIND_MESSAGES.length; i++) {
   titles.push(b.status(t, 0).message.title);
   b.skip(t);
 }
-check(`${REMIND_MESSAGES.length} lần nhắc liên tiếp: KHÔNG lặp lại câu nào`,
+check(`${REMIND_MESSAGES.length} reminders in a row: NOT one text repeats`,
   new Set(titles).size === REMIND_MESSAGES.length);
 b.triggerReminder(t);
-check('hết bộ thì quay vòng lại câu đầu', b.status(t, 0).message.title === titles[0]);
+check('once the set is exhausted it wraps back to the first text', b.status(t, 0).message.title === titles[0]);
 b = fresh({ ...S, intervalMins: 30 });
 b.triggerReminder(t);
 const msg = b.status(t, 0).message;
-check('lời nhắc chèn đúng số phút đã cài (30)', msg.body.includes('30 phút'));
-check('không còn sót ký hiệu {mins} chưa thay', !msg.body.includes('{mins}'));
+check('the reminder carries the configured minute count (30)', msg.body.includes('30 phút'));
+check('no leftover unsubstituted {mins} marker', !msg.body.includes('{mins}'));
 fx = b.remindEffects();
-check('lúc nhắc CHỈ mở cửa sổ nhắc, không kèm toast Windows',
+check('reminding ONLY opens the window, with no Windows toast alongside',
   has(fx, 'openReminder') && !has(fx, 'notify'));
 b = fresh();
 const bTitles = [];
@@ -463,21 +464,21 @@ for (let i = 0; i < BREAK_OVER_MESSAGES.length; i++) {
   b.triggerReminder(t); b.takeBreak(t);
   bTitles.push(run(b, 5 * 60 + 1).find((x) => x.type === 'notify').title);
 }
-check('câu báo hết giờ nghỉ cũng xoay vòng, không lặp',
+check('the break-over texts rotate too, with no repeats',
   new Set(bTitles).size === BREAK_OVER_MESSAGES.length);
 
-console.log('9. Cấu hình biên: interval tối thiểu 5 phút');
+console.log('9. Boundary configuration: minimum interval of 5 minutes');
 b = fresh({ intervalMins: 5, breakMins: 1, idleMins: 1 });
 run(b, 5 * 60 + 1);
-check('interval 5 phút vẫn nhắc đúng', b.phase === 'reminding');
+check('a 5 minute interval still reminds correctly', b.phase === 'reminding');
 b.takeBreak(t);
 run(b, 61);
-check('nghỉ 1 phút kết thúc đúng', b.phase === 'working');
+check('a 1 minute break ends correctly', b.phase === 'working');
 b = fresh({ intervalMins: 240, breakMins: 60, idleMins: 60 });
 run(b, 239 * 60);
-check('interval tối đa 240 phút: chưa nhắc sớm', b.phase === 'working');
+check('maximum interval of 240 minutes: no early reminder', b.phase === 'working');
 
-console.log('10. Chạy dài 8 tiếng liên tục — kiểm tra ổn định & không rò trạng thái');
+console.log('10. Running 8 hours straight — stability and no state leaks');
 b = fresh();
 let reminders = 0, notifies = 0;
 const VALID = ['working', 'reminding', 'breaking', 'idle', 'paused'];
@@ -485,87 +486,87 @@ for (let s = 0; s < 8 * 3600; s++) {
   const out = b.tick((t += 1000), 0);
   reminders += count(out, 'openReminder');
   notifies += count(out, 'notify');
-  if (b.phase === 'reminding') b.takeBreak(t); // người dùng luôn nghe lời
-  assert.ok(VALID.includes(b.phase), `trạng thái lạ: ${b.phase}`);
+  if (b.phase === 'reminding') b.takeBreak(t); // a user who always complies
+  assert.ok(VALID.includes(b.phase), `unknown phase: ${b.phase}`);
 }
-check(`8 giờ liên tục: không crash, trạng thái luôn hợp lệ`, true);
-check(`số lần nhắc hợp lý (${reminders} lần, kỳ vọng ~9 với chu kỳ 45+5 phút)`,
+check(`8 hours straight: no crash, the phase is always valid`, true);
+check(`a sensible number of reminders (${reminders}, expected ~9 for a 45+5 minute cycle)`,
   reminders >= 8 && reminders <= 10);
-check('mỗi chu kỳ chỉ 1 toast — báo hết giờ nghỉ, KHÔNG toast lúc nhắc', notifies === reminders);
-check('kết thúc 8 giờ ở trạng thái sạch', VALID.includes(b.phase));
+check('one toast per cycle — the break-over one, and NO toast when reminding', notifies === reminders);
+check('ends the 8 hours in a clean state', VALID.includes(b.phase));
 
-console.log('11. Chạy dài 8 tiếng với người dùng hay rời máy');
+console.log('11. Running 8 hours with a user who often steps away');
 b = fresh();
 let ok = true;
 for (let s = 0; s < 8 * 3600; s++) {
-  // cứ mỗi 20 phút thì rời máy 6 phút
+  // away for 6 minutes out of every 20
   const inCycle = s % 1200;
   const idle = inCycle > 840 ? (inCycle - 840) : 0;
   b.tick((t += 1000), idle);
   if (b.phase === 'reminding') b.takeBreak(t);
   if (!VALID.includes(b.phase)) ok = false;
 }
-check('8 giờ với idle xen kẽ: không kẹt, không crash', ok);
-check('kết thúc ở trạng thái hợp lệ', VALID.includes(b.phase));
+check('8 hours with interleaved idle: never stuck, never crashes', ok);
+check('ends in a valid phase', VALID.includes(b.phase));
 
-console.log('12. Màn nghỉ che màn hình + động tác giãn cơ');
+console.log('12. Full-screen break overlay plus the stretch');
 const SO = { ...S, breakOverlay: true };
-// --- Bật: vào nghỉ thì mở màn nghỉ, dẹp cửa sổ nhắc nhỏ ---
+// --- On: entering a break opens the overlay and puts the small reminder away ---
 b = new Engine(SO, t);
 run(b, 45 * 60 + 1);
 fx = b.takeBreak(t);
-check('bật overlay: bấm "Nghỉ ngay" → mở màn nghỉ', has(fx, 'openOverlay'));
-check('bật overlay: đóng luôn cửa sổ nhắc nhỏ (không hai cửa sổ cùng đếm)', has(fx, 'closeReminder'));
-check('vào nghỉ là có sẵn động tác', b.stretch !== null && typeof b.stretch.name === 'string');
-check('động tác có đủ icon + tên + hướng dẫn',
+check('overlay on: pressing "Break now" -> opens the overlay', has(fx, 'openOverlay'));
+check('overlay on: also closes the small reminder (no two windows counting the same break)', has(fx, 'closeReminder'));
+check('entering a break always comes with a stretch', b.stretch !== null && typeof b.stretch.name === 'string');
+check('the stretch has an icon, a name and instructions',
   !!b.stretch.icon && !!b.stretch.name && b.stretch.text.length > 10);
-check('trạng thái phát ra kèm động tác (để màn nghỉ vẽ)',
+check('the broadcast state carries the stretch (so the overlay can draw it)',
   b.status(t, 0).stretch.name === b.stretch.name);
 
-// --- Mọi lối ra khỏi giờ nghỉ đều phải đóng màn nghỉ ---
+// --- Every exit from a break must close the overlay ---
 fx = run(b, 5 * 60 + 1);
-check('hết giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
-check('hết giờ nghỉ vẫn báo toast như cũ', has(fx, 'notify'));
+check('break ends -> closes the overlay', has(fx, 'closeOverlay'));
+check('break ends: the toast still fires as before', has(fx, 'notify'));
 
 b = new Engine(SO, t);
 b.breakNow(t);
 fx = b.skip(t);
-check('bấm "Làm việc tiếp" giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+check('pressing "Back to work" mid-break -> closes the overlay', has(fx, 'closeOverlay'));
 
 b = new Engine(SO, t);
 b.breakNow(t);
 fx = b.pause(t, 60);
-check('tạm dừng giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
+check('pausing mid-break -> closes the overlay', has(fx, 'closeOverlay'));
 
 b = new Engine(SO, t);
 b.breakNow(t);
-fx = b.tick((t += 10 * 60 * 1000), 0); // máy ngủ 10 phút giữa giờ nghỉ
-check('máy ngủ dậy giữa giờ nghỉ → đóng màn nghỉ', has(fx, 'closeOverlay'));
-check('ngủ dậy thì về chu kỳ mới', b.phase === 'working');
+fx = b.tick((t += 10 * 60 * 1000), 0); // machine sleeps 10 minutes mid-break
+check('waking mid-break -> closes the overlay', has(fx, 'closeOverlay'));
+check('waking lands in a new cycle', b.phase === 'working');
 
-// --- "Nghỉ ngay" từ menu tray ---
+// --- "Break now" from the tray menu ---
 b = new Engine(SO, t);
 fx = b.breakNow(t);
-check('tray "Nghỉ ngay" (bật overlay) → mở màn nghỉ', has(fx, 'openOverlay'));
-check('tray "Nghỉ ngay" (bật overlay) → KHÔNG mở cửa sổ nhắc nhỏ', !has(fx, 'openReminder'));
+check('tray "Break now" (overlay on) -> opens the overlay', has(fx, 'openOverlay'));
+check('tray "Break now" (overlay on) -> does NOT open the small reminder', !has(fx, 'openReminder'));
 
-// --- Tắt overlay: giữ nguyên nếp cũ ---
+// --- Overlay off: the old behaviour is preserved ---
 b = new Engine({ ...S, breakOverlay: false }, t);
 run(b, 45 * 60 + 1);
 fx = b.takeBreak(t);
-check('tắt overlay: KHÔNG mở màn nghỉ', !has(fx, 'openOverlay'));
-check('tắt overlay: giữ cửa sổ nhắc để nó tự đếm giờ nghỉ', !has(fx, 'closeReminder'));
+check('overlay off: does NOT open the overlay', !has(fx, 'openOverlay'));
+check('overlay off: keeps the reminder window so it can count the break down', !has(fx, 'closeReminder'));
 fx = b.breakNow(t);
-check('tắt overlay: tray "Nghỉ ngay" vẫn mở cửa sổ nhắc như cũ', has(fx, 'openReminder'));
+check('overlay off: tray "Break now" still opens the reminder window as before', has(fx, 'openReminder'));
 
-// --- Màn nghỉ chỉ được mở khi thật sự đang nghỉ ---
+// --- The overlay may only open during an actual break ---
 b = new Engine(SO, t);
 fx = run(b, 45 * 60 + 1);
-check('lúc nhắc (chưa nghỉ) KHÔNG mở màn nghỉ', !has(fx, 'openOverlay') && b.phase === 'reminding');
+check('while reminding (no break yet) it does NOT open the overlay', !has(fx, 'openOverlay') && b.phase === 'reminding');
 fx = b.snooze(t);
-check('bấm "Hoãn" cũng không mở màn nghỉ', !has(fx, 'openOverlay'));
+check('pressing "Snooze" does not open the overlay either', !has(fx, 'openOverlay'));
 
-// --- Xoay vòng động tác: không lặp trước khi dùng hết bộ ---
+// --- Stretch rotation: no repeats before the whole set is used ---
 b = new Engine(SO, t);
 const seen = [];
 for (let i = 0; i < STRETCH_IDEAS.length; i++) {
@@ -573,15 +574,15 @@ for (let i = 0; i < STRETCH_IDEAS.length; i++) {
   seen.push(b.stretch.name);
   b.skip(t);
 }
-check(`${STRETCH_IDEAS.length} lần nghỉ đầu: ${STRETCH_IDEAS.length} động tác KHÁC nhau`,
+check(`the first ${STRETCH_IDEAS.length} breaks: ${STRETCH_IDEAS.length} DIFFERENT stretches`,
   new Set(seen).size === STRETCH_IDEAS.length);
 b.breakNow(t);
-check('hết bộ thì quay lại động tác đầu', b.stretch.name === seen[0]);
-check('bộ động tác đủ nhiều để không nhàm (>= 6)', STRETCH_IDEAS.length >= 6);
+check('once the set is exhausted it wraps back to the first stretch', b.stretch.name === seen[0]);
+check('the stretch set is big enough not to get boring (>= 6)', STRETCH_IDEAS.length >= 6);
 
-// --- Bất biến quan trọng nhất: màn nghỉ không bao giờ bị kẹt lại ---
-// Một cửa sổ che kín màn hình mà kẹt thì người dùng coi như mất máy, nên chạy
-// dài 8 tiếng và soi: số lần mở phải luôn khớp số lần đóng.
+// --- The most important invariant: the overlay never gets stuck ---
+// A window covering the whole screen that gets stuck effectively takes the user's
+// machine away, so run for 8 hours and check: every open must be matched by a close.
 b = new Engine(SO, t);
 let opens = 0; let closes = 0;
 for (let sec = 0; sec < 8 * 3600; sec++) {
@@ -594,14 +595,14 @@ for (let sec = 0; sec < 8 * 3600; sec++) {
     closes += count(a, 'closeOverlay');
   }
 }
-check(`8 giờ liên tục: mở màn nghỉ ${opens} lần, đóng ${closes} lần — khớp nhau, không kẹt`,
+check(`8 hours straight: overlay opened ${opens} times, closed ${closes} — matched, never stuck`,
   opens > 0 && opens === closes);
-check('kết thúc 8 giờ không mắc kẹt ở giờ nghỉ', b.phase !== 'breaking');
+check('ends the 8 hours without being trapped in a break', b.phase !== 'breaking');
 
-console.log('12b. Mỗi động tác giãn cơ có hình hợp lệ để màn nghỉ vẽ');
-// Overlay biết vẽ đúng 8 kiểu này (7 hình que + 1 hình mắt). Một khoá anim gõ
-// sai (vd 'shoudlers') sẽ khiến overlay lặng lẽ lùi về emoji — test này chặn
-// đúng lớp lỗi đó ngay từ dữ liệu engine.
+console.log('12b. Every stretch has a figure the overlay can actually draw');
+// The overlay knows exactly these 8 kinds (7 stick-figure poses plus the eyes). One
+// mistyped anim key (say 'shoudlers') would make the overlay quietly fall back to the
+// emoji — this test blocks that class of bug at the engine data level.
 const KNOWN_ANIMS = new Set(['shoulders', 'neck', 'reach', 'bend', 'wrist', 'eyes', 'walk', 'calf']);
 let stretchesOk = true, allHaveAnim = true;
 for (const s of STRETCH_IDEAS) {
@@ -609,7 +610,7 @@ for (const s of STRETCH_IDEAS) {
   if (!s.anim) allHaveAnim = false;
   else if (!KNOWN_ANIMS.has(s.anim)) stretchesOk = false;
 }
-check('mọi động tác đủ icon + tên + hướng dẫn (>10 ký tự)', stretchesOk);
-check('cả 8 động tác đều có anim thuộc bộ overlay biết vẽ', allHaveAnim && STRETCH_IDEAS.length === 8);
+check('every stretch has an icon, a name and instructions (>10 chars)', stretchesOk);
+check('all 8 stretches use an anim the overlay knows how to draw', allHaveAnim && STRETCH_IDEAS.length === 8);
 
-console.log(`\nTẤT CẢ ${passed} KIỂM TRA ĐỀU ĐẠT ✅`);
+console.log(`\nALL ${passed} CHECKS PASSED ✅`);

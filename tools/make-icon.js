@@ -1,14 +1,14 @@
-// Tạo file .ico đa kích thước cho Windows từ icon nguồn, không cần thư viện ngoài.
-// Mỗi mục trong ICO là một ảnh PNG (Windows Vista+ chấp nhận PNG nhúng trong ICO).
-// Ảnh được vẽ lại ở từng kích thước bằng chính thuật toán vẽ của app (hình tròn
-// xanh + người đứng) để nét ở cả 16px lẫn 256px.
+// Build a multi-size Windows .ico from the source icon, with no external library.
+// Each entry inside the ICO is a PNG (Windows Vista+ accepts PNGs embedded in an ICO).
+// The image is redrawn at every size by the app's own drawing routine (a green circle
+// plus a standing figure) so it stays crisp at 16px and at 256px alike.
 const fs = require('node:fs');
 const zlib = require('node:zlib');
 
 const SIZES = [16, 24, 32, 48, 64, 128, 256];
 const GREEN = [16, 163, 127];
 
-// Vẽ icon ở kích thước S, trả về mảng RGBA.
+// Draw the icon at size S, returning an RGBA buffer.
 function draw(S) {
   const px = Buffer.alloc(S * S * 4);
   const set = (x, y, r, g, b, a) => {
@@ -16,9 +16,9 @@ function draw(S) {
     const i = (y * S + x) * 4;
     px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = a;
   };
-  const u = S / 256; // hệ số quy đổi từ thiết kế gốc 256px
+  const u = S / 256; // scale factor from the original 256px design
   const cx = S / 2, cy = S / 2, rad = S / 2 - Math.max(1, 2 * u);
-  // Nền tròn, khử răng cưa bằng cách lấy mẫu 3x3 mỗi điểm ảnh.
+  // Round background, antialiased by sampling each pixel on a 3x3 grid.
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       let hit = 0;
@@ -32,27 +32,27 @@ function draw(S) {
       if (hit) set(x, y, GREEN[0], GREEN[1], GREEN[2], Math.round((hit / 9) * 255));
     }
   }
-  // Hình người đứng màu trắng (toạ độ theo thiết kế 256px, quy đổi theo u).
+  // The white standing figure (coordinates in the 256px design, scaled by u).
   const rect = (x0, y0, w, h) => {
     for (let y = Math.round(y0 * u); y < Math.round((y0 + h) * u); y++) {
       for (let x = Math.round(x0 * u); x < Math.round((x0 + w) * u); x++) set(x, y, 255, 255, 255, 255);
     }
   };
-  // Đầu (hình tròn)
+  // Head (a circle)
   const hr = 22 * u, hx = 128 * u, hy = 64 * u;
   for (let y = Math.floor(hy - hr); y <= Math.ceil(hy + hr); y++) {
     for (let x = Math.floor(hx - hr); x <= Math.ceil(hx + hr); x++) {
       if ((x + 0.5 - hx) ** 2 + (y + 0.5 - hy) ** 2 <= hr * hr) set(x, y, 255, 255, 255, 255);
     }
   }
-  rect(116, 94, 24, 74);  // thân
-  rect(78, 100, 100, 16); // hai tay dang ngang
-  rect(116, 168, 10, 50); // chân trái
-  rect(130, 168, 10, 50); // chân phải
+  rect(116, 94, 24, 74);  // torso
+  rect(78, 100, 100, 16); // both arms, held out sideways
+  rect(116, 168, 10, 50); // left leg
+  rect(130, 168, 10, 50); // right leg
   return px;
 }
 
-// Đóng gói RGBA thành PNG (dùng zlib có sẵn của Node).
+// Wrap the RGBA buffer into a PNG (using Node's built-in zlib).
 function png(px, S) {
   const raw = Buffer.alloc((S * 4 + 1) * S);
   for (let y = 0; y < S; y++) {
@@ -103,10 +103,10 @@ header.writeUInt16LE(imgs.length, 4);
 let offset = header.length;
 imgs.forEach((im, i) => {
   const p = 6 + i * 16;
-  header[p] = im.S >= 256 ? 0 : im.S;   // 0 nghĩa là 256
+  header[p] = im.S >= 256 ? 0 : im.S;   // 0 means 256
   header[p + 1] = im.S >= 256 ? 0 : im.S;
-  header[p + 2] = 0;                    // số màu bảng màu
-  header[p + 3] = 0;                    // dự trữ
+  header[p + 2] = 0;                    // palette colour count
+  header[p + 3] = 0;                    // reserved
   header.writeUInt16LE(1, p + 4);       // planes
   header.writeUInt16LE(32, p + 6);      // bit depth
   header.writeUInt32LE(im.data.length, p + 8);
@@ -116,6 +116,6 @@ imgs.forEach((im, i) => {
 
 const out = process.argv[2];
 fs.writeFileSync(out, Buffer.concat([header, ...imgs.map((i) => i.data)]));
-// Xuất kèm bản PNG 256 để electron-builder dùng cho các nền tảng khác.
+// Also emit the 256px PNG, which electron-builder uses for other platforms.
 fs.writeFileSync(out.replace(/\.ico$/, '.png'), imgs[imgs.length - 1].data);
-console.log(`Đã tạo ${out} — ${imgs.length} kích thước: ${SIZES.join(', ')}`);
+console.log(`Wrote ${out} — ${imgs.length} sizes: ${SIZES.join(', ')}`);

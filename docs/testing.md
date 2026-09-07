@@ -145,7 +145,7 @@ liên tục thì chắc chắn hơn.
 
 **Bản dev và bản đã cài dùng chung khoá chống chạy trùng** — quên `--user-data-dir` riêng
 thì bản dev tự thoát và bạn ngồi đo bản cũ. Xem
-[ghi chú kỹ thuật](ghi-chu-ky-thuat.md#bản-dev-tranh-chấp-với-bản-đã-cài).
+[ghi chú kỹ thuật](technical-notes.md#bản-dev-tranh-chấp-với-bản-đã-cài).
 
 Bài học chung: khi máy đo báo hỏng, **nghi ngờ máy đo trước**. Trong dự án này, số lần bài
 kiểm sai nhiều hơn số lần app sai.

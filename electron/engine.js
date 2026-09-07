@@ -1,14 +1,18 @@
-// Engine — state machine thuần của StandUp, không phụ thuộc Electron (unit-test được).
+// Engine — StandUp's pure state machine, free of any Electron dependency (unit-testable).
 //
-// Trạng thái:
-//   working   — đang trong chu kỳ ngồi làm việc, đếm tới deadline
-//   reminding — đã tới giờ, cửa sổ nhắc đang mở, chờ người dùng hành động
-//   breaking  — đang nghỉ, đếm tới hết giờ nghỉ
-//   idle      — người dùng rời máy (coi như đang nghỉ tự nhiên)
-//   paused    — người dùng chủ động tạm dừng
+// Phases:
+//   working   — inside a sitting cycle, counting down to the deadline
+//   reminding — time is up, the reminder window is open, waiting for the user
+//   breaking  — on a break, counting down to its end
+//   idle      — the user left the machine (treated as a natural break)
+//   paused    — the user paused on purpose
 //
-// Mọi thời gian là epoch milliseconds (wall-clock tuyệt đối) để sống sót qua
-// sleep/hibernate: máy ngủ đủ lâu = coi như đã nghỉ, bắt đầu chu kỳ mới.
+// Every time value is epoch milliseconds (absolute wall clock) so the app survives
+// sleep/hibernate: a long enough sleep counts as a break and starts a new cycle.
+//
+// NOTE ON LANGUAGE: comments are English, but every string the user actually reads
+// (reminder texts, stretch names and instructions) stays Vietnamese — that is the
+// product's language. See CONTRIBUTING.md.
 
 const PHASE = {
   WORKING: 'working',
@@ -18,8 +22,9 @@ const PHASE = {
   PAUSED: 'paused',
 };
 
-// Vị trí cửa sổ nhắc. Chỉ hai lựa chọn để giữ giao diện gọn; mặc định góc
-// dưới-phải (chỗ toast Windows quen xuất hiện, không che nội dung đang làm).
+// Where the reminder window appears. Only two choices, to keep the settings panel
+// small; the default is the bottom-right corner (where Windows toasts usually show
+// up, and where it does not cover what you are working on).
 const REMINDER_POSITIONS = ['bottom-right', 'center'];
 
 const DEFAULT_SETTINGS = {
@@ -29,21 +34,21 @@ const DEFAULT_SETTINGS = {
   sound: true,
   autoStart: true,
   reminderPosition: 'bottom-right',
-  deferFullscreen: true, // hoãn lời nhắc khi đang toàn màn hình (phim/game/trình chiếu)
-  breakOverlay: true,    // giờ nghỉ che màn hình kèm một động tác giãn cơ
+  deferFullscreen: true, // hold reminders back during full-screen (video/game/presentation)
+  breakOverlay: true,    // break takes over the screen and shows one stretch
   onboarded: false,
 };
 
-// Làm sạch cài đặt đến từ renderer hoặc file JSON trên đĩa: cả hai đều có thể
-// chứa giá trị rác (chuỗi rỗng, NaN, âm, file bị sửa tay). Giá trị ngoài khoảng
-// bị kẹp về biên; giá trị không phải số rơi về mặc định.
+// Sanitise settings coming from the renderer or from the JSON file on disk: both can
+// carry garbage (empty strings, NaN, negatives, a hand-edited file). Out-of-range
+// numbers are clamped to the bounds; non-numbers fall back to the default.
 function clampSettings(raw) {
   const num = (v, lo, hi, dflt) => {
     const n = Math.round(Number(v));
     return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt;
   };
   const bool = (v, dflt) => (typeof v === 'boolean' ? v : dflt);
-  // Giá trị lạ (chuỗi rác, sai chính tả, kiểu khác) rơi về mặc định.
+  // Unknown values (garbage strings, typos, wrong types) fall back to the default.
   const oneOf = (v, allowed, dflt) => (allowed.includes(v) ? v : dflt);
   return {
     intervalMins: num(raw?.intervalMins, 5, 240, DEFAULT_SETTINGS.intervalMins),
@@ -58,8 +63,9 @@ function clampSettings(raw) {
   };
 }
 
-// Lời nhắc xoay vòng. Nghe mãi một câu là công tắc tắt app nhanh nhất —
-// giọng thân thiện, không ra lệnh, không phán xét. {mins} = số phút đã ngồi.
+// Reminder texts, used in rotation. Reading the same sentence over and over is the
+// fastest route to the user quitting the app — so the tone is friendly, never bossy
+// or judgemental. {mins} = how many minutes they have been sitting.
 const REMIND_MESSAGES = [
   { title: 'Đến giờ vận động rồi! 🚶', body: 'Bạn đã ngồi {mins} phút liên tục. Đứng dậy đi lại một chút nhé.' },
   { title: 'Nghỉ chút nào 🌿', body: '{mins} phút trôi qua rồi. Vươn vai, duỗi chân cho thoải mái.' },
@@ -82,11 +88,12 @@ const BREAK_OVER_MESSAGES = [
   { title: 'Tiếp tục thôi 💼', body: 'Nghỉ đủ rồi, mình làm tiếp nào.' },
 ];
 
-// Giờ nghỉ mà chỉ đếm ngược thì rất dễ ngồi ì nhìn con số chạy rồi quay lại làm —
-// đúng thứ khiến "đã nghỉ" không thành "đã vận động". Mỗi lần nghỉ đưa ra MỘT
-// động tác cụ thể, đủ ngắn để làm ngay tại chỗ. Xoay vòng tuần tự như bộ câu nhắc
-// nên không lặp lại trước khi dùng hết bộ. Cố ý giữ mức phổ thông, không động tác
-// mạnh và không hứa hẹn gì về y khoa.
+// A break that only counts down invites you to sit there watching the number tick
+// and then go straight back to work — exactly what stops "took a break" from
+// becoming "actually moved". So every break offers ONE concrete stretch, short
+// enough to do on the spot. They rotate in order like the reminder texts, so none
+// repeats before the whole set has been used. Deliberately kept ordinary: no
+// strenuous moves and no medical claims.
 const STRETCH_IDEAS = [
   { icon: '🙆', name: 'Xoay vai', anim: 'shoulders', text: 'Xoay vai ra sau 10 vòng, rồi ra trước 10 vòng. Thả lỏng hai tay, đừng gồng.' },
   { icon: '🦒', name: 'Duỗi cổ', anim: 'neck', text: 'Nghiêng đầu sang phải, giữ 15 giây rồi đổi bên. Giữ vai yên, chỉ nghiêng cổ.' },
@@ -99,17 +106,18 @@ const STRETCH_IDEAS = [
 ];
 
 const SNOOZE_MINS = 5;
-// Lời nhắc bị phớt lờ quá lâu TRONG KHI người dùng vẫn ngồi máy (không rời đi để
-// tự chuyển sang idle) → tuyệt đối không để app kẹt ở 'reminding' và im lặng
-// vĩnh viễn: chỉ cần phớt lờ MỘT popup là coi như tắt cả app. Quá mốc này thì tự
-// hoãn như bấm "Hoãn". Đặt 3 phút: đủ để không phiền người đang dở tay, nhưng
-// vẫn kéo app ra khỏi thế kẹt. Phải > 120s vì test để engine ở 'reminding' đúng
-// 120s rồi mới thao tác tiếp.
+// A reminder ignored for too long WHILE the user is still at the machine (i.e. they
+// did not walk away, which would flip us to idle) must never leave the app stuck in
+// 'reminding' and silent forever: ignoring ONE popup would then be as good as
+// quitting the app. Past this mark we snooze ourselves, exactly as if "Snooze" had
+// been pressed. Set to 3 minutes: long enough not to nag someone mid-thought, short
+// enough to pull the app out of the dead end. Must be > 120s, because a test parks
+// the engine in 'reminding' for exactly 120s before acting.
 const IGNORED_RENAG_SECS = 180;
-// Khoảng trống giữa 2 tick vượt mức này nghĩa là máy vừa sleep/hibernate
-// (tick bình thường cách nhau 1 giây).
+// A gap between two ticks larger than this means the machine just slept/hibernated
+// (normal ticks are one second apart).
 const SLEEP_GAP_SECS = 90;
-// Idle tụt xuống dưới mức này nghĩa là người dùng đã quay lại máy.
+// Idle time dropping below this means the user is back at the machine.
 const BACK_ACTIVE_SECS = 3;
 
 class Engine {
@@ -117,16 +125,16 @@ class Engine {
     this.settings = { ...settings };
     this.phase = PHASE.WORKING;
     this.deadline = now + this.intervalMs();
-    this.pauseUntil = undefined; // number = hẹn giờ, null = đến khi bật lại
+    this.pauseUntil = undefined; // number = timed pause, null = until resumed
     this.lastTick = now;
-    // Xoay vòng tuần tự (không random) để không bao giờ lặp câu trước khi
-    // dùng hết bộ — vừa dễ test, vừa đỡ nhàm hơn random thật.
+    // Rotate in order (not at random) so no text ever repeats before the whole set
+    // has been used — easier to test, and less repetitive than true randomness.
     this.remindMsgIndex = 0;
     this.breakMsgIndex = 0;
-    this.message = null; // lời nhắc đang hiển thị, để cửa sổ nhắc dùng chung
-    this.remindingSince = 0; // mốc vào 'reminding', để biết bị phớt lờ quá lâu chưa
+    this.message = null; // reminder currently on show, shared with the reminder window
+    this.remindingSince = 0; // when we entered 'reminding', to detect being ignored
     this.stretchIndex = 0;
-    this.stretch = null; // động tác giãn cơ của giờ nghỉ đang diễn ra
+    this.stretch = null; // the stretch for the break currently running
   }
 
   intervalMs() { return this.settings.intervalMins * 60_000; }
@@ -140,9 +148,10 @@ class Engine {
     this.pauseSpanMs = undefined;
   }
 
-  // Đồng hồ hệ thống bị chỉnh LÙI (NTP sync, người dùng đổi giờ/múi giờ) sẽ đẩy
-  // deadline ra xa hơn cả một chu kỳ đầy đủ → app im lặng vô thời hạn. Không thể
-  // biết thực sự đã ngồi bao lâu, nên kéo deadline về đúng một chu kỳ tính từ bây giờ.
+  // A system clock moved BACKWARDS (NTP sync, the user changing time or time zone)
+  // pushes the deadline further away than a whole cycle → the app goes silent
+  // indefinitely. There is no way to know how long they have really been sitting, so
+  // pull the deadline back to exactly one cycle from now.
   rebaseIfClockWentBack(now) {
     const span = this.phase === PHASE.BREAKING ? this.breakMs() : this.intervalMs();
     if (this.deadline > now + span) this.deadline = now + span;
@@ -169,10 +178,11 @@ class Engine {
     };
   }
 
-  // Gọi mỗi ~1 giây. Trả về danh sách effect cho tầng ngoài thực thi:
+  // Call about once a second. Returns a list of effects for the outer layer to run:
   //   {type:'openReminder'} | {type:'closeReminder'} | {type:'notify', title, body}
-  // canNotify: Windows có đang cho phép bung lời nhắc không (false khi người dùng
-  // đang toàn màn hình/trình chiếu/game). Mặc định true — tầng ngoài truyền vào.
+  // canNotify: whether Windows currently allows popping the reminder (false while the
+  // user is full-screen / presenting / gaming). Defaults to true — the outer layer
+  // supplies it.
   tick(now, idleSecs, canNotify = true) {
     const fx = [];
     const gapSecs = (now - this.lastTick) / 1000;
@@ -180,7 +190,7 @@ class Engine {
 
     if (gapSecs < 0) this.rebaseIfClockWentBack(now);
 
-    // Máy sleep/hibernate đủ lâu = người dùng đã rời máy = đã nghỉ.
+    // A long enough sleep/hibernate = the user was away = they had their break.
     if (gapSecs >= SLEEP_GAP_SECS && gapSecs >= this.idleThresholdSecs() && this.phase !== PHASE.PAUSED) {
       if (this.phase === PHASE.REMINDING || this.phase === PHASE.BREAKING) {
         fx.push({ type: 'closeReminder' }, { type: 'closeOverlay' });
@@ -194,11 +204,12 @@ class Engine {
         if (idleSecs >= this.idleThresholdSecs()) {
           this.phase = PHASE.IDLE;
         } else if (now >= this.deadline) {
-          // Tới giờ nhắc — nhưng nếu Windows đang bận (toàn màn hình/trình chiếu/
-          // game) thì KHOAN bung, kẻo lời nhắc always-on-top nhảy đè lên. Giữ
-          // nguyên working; deadline đã qua nên mỗi tick sau kiểm lại, hễ rảnh là
-          // nhắc ngay. Không dời deadline (tránh cộng dồn trễ) và cũng không tính
-          // đây là "bị phớt lờ" — chưa hề hiện ra thì lấy gì mà phớt lờ.
+          // Time to remind — but if Windows is busy (full-screen / presentation /
+          // game) then HOLD OFF, or the always-on-top reminder would jump on top of
+          // it. Stay in working; the deadline has passed, so every later tick checks
+          // again and reminds the moment they are free. Do not move the deadline
+          // (that would accumulate lateness) and do not count this as "ignored" —
+          // nothing was shown, so there is nothing to ignore.
           if (canNotify) {
             this.phase = PHASE.REMINDING;
             this.remindingSince = now;
@@ -208,16 +219,18 @@ class Engine {
         break;
 
       case PHASE.REMINDING:
-        // Đứng dậy bỏ đi sau khi được nhắc = đã nghỉ, không cần bấm gì cả.
+        // Standing up and walking away after being reminded = break taken, no button
+        // press required.
         if (idleSecs >= this.idleThresholdSecs()) {
           this.phase = PHASE.IDLE;
           fx.push({ type: 'closeReminder' });
         } else if (now - this.remindingSince >= IGNORED_RENAG_SECS * 1000) {
-          // Vẫn ngồi máy mà phớt lờ lời nhắc quá lâu: không để kẹt ở 'reminding'
-          // (sẽ im lặng mãi). Xử như bấm "Hoãn" — cuộn cửa sổ đi rồi nhắc lại
-          // sau ít phút. Riêng lời nhắc THỬ bắn ra giữa lúc đang tạm dừng
-          // (pauseUntil vẫn còn nguyên) thì trả về tạm dừng, y hệt skip() — không
-          // âm thầm cho chạy tiếp sau lưng người dùng.
+          // Still at the machine but ignoring the reminder for too long: do not get
+          // stuck in 'reminding' (which would stay silent forever). Treat it like
+          // pressing "Snooze" — put the window away and remind again in a few
+          // minutes. One exception: a TEST reminder fired while paused (pauseUntil is
+          // still set) goes back to paused, exactly like skip() — never quietly
+          // resume behind the user's back.
           fx.push({ type: 'closeReminder' });
           if (this.pauseUntil !== undefined) {
             this.phase = PHASE.PAUSED;
@@ -244,7 +257,7 @@ class Engine {
 
       case PHASE.IDLE:
         if (idleSecs <= BACK_ACTIVE_SECS) {
-          this.newCycle(now); // quay lại máy → chu kỳ mới, không hỏi han gì
+          this.newCycle(now); // back at the machine → new cycle, no questions asked
         }
         break;
 
@@ -264,22 +277,23 @@ class Engine {
       title: m.title,
       body: m.body.replace('{mins}', String(this.settings.intervalMins)),
     };
-    // KHÔNG bắn toast Windows lúc nhắc: cửa sổ nhắc (openReminder) đã hiện đúng
-    // câu này rồi, thêm toast là báo trùng hai lần cùng lúc. Cửa sổ nhắc còn hơn
-    // toast ở chỗ có nút hành động và không thể bị Windows tắt ngầm. Toast chỉ
-    // giữ cho lúc HẾT GIỜ NGHỈ (không có cửa sổ nào khác báo) và onboarding.
+    // Do NOT fire a Windows toast when reminding: the reminder window (openReminder)
+    // already shows this exact text, so a toast would announce the same thing twice
+    // at once. The window also beats a toast in having action buttons and in not
+    // being silently suppressed by Windows. Toasts are kept only for the END OF A
+    // BREAK (where no other window announces it) and for onboarding.
     return [
       { type: 'openReminder' },
       ...(this.settings.sound ? [{ type: 'sound', kind: 'remind' }] : []),
     ];
   }
 
-  // ---- Hành động từ người dùng ----
+  // ---- User actions ----
 
-  // Ba hàm dưới đây đều xoá pauseUntil: chúng ứng với việc người dùng CHỦ ĐỘNG
-  // hưởng ứng lời nhắc (nghỉ / hoãn), nên trạng thái tạm dừng cũ coi như bỏ.
-  // Riêng skip() thì không — xem giải thích ở đó.
-  // Mỗi lần vào giờ nghỉ lấy động tác kế tiếp trong bộ.
+  // The three methods below all clear pauseUntil: they correspond to the user
+  // DELIBERATELY responding to a reminder (break / snooze), so any earlier paused
+  // state is considered dropped. skip() is the exception — see the note there.
+  // Each break takes the next stretch from the set.
   pickStretch() {
     this.stretch = STRETCH_IDEAS[this.stretchIndex % STRETCH_IDEAS.length];
     this.stretchIndex += 1;
@@ -291,9 +305,10 @@ class Engine {
     this.deadline = now + this.breakMs();
     this.pauseUntil = undefined;
     this.pickStretch();
-    // Bật overlay: nhường chỗ cho màn nghỉ che toàn màn hình, nên dẹp cửa sổ nhắc
-    // nhỏ đi kẻo hai cửa sổ cùng đếm một giờ nghỉ. Tắt overlay: giữ nguyên nếp cũ
-    // — cửa sổ nhắc tự chuyển sang mặt đếm giờ nghỉ, không cần effect nào.
+    // Overlay on: it takes over the whole screen, so put the small reminder window
+    // away or two windows would be counting down the same break. Overlay off: keep
+    // the old behaviour — the reminder window switches to its break-countdown face
+    // by itself, no effect needed.
     return this.settings.breakOverlay
       ? [{ type: 'closeReminder' }, { type: 'openOverlay' }]
       : [];
@@ -309,10 +324,10 @@ class Engine {
 
   skip(now) {
     if (this.phase !== PHASE.REMINDING && this.phase !== PHASE.BREAKING) return [];
-    // "Bỏ qua" nghĩa là dẹp lời nhắc đi và không đổi gì khác. Nếu lời nhắc này
-    // là bản THỬ bắn ra trong lúc đang tạm dừng (pauseUntil vẫn còn nguyên vì
-    // triggerReminder không đụng tới), thì phải trả app về đúng trạng thái tạm
-    // dừng cũ — chứ không âm thầm cho chạy lại sau lưng người dùng.
+    // "Skip" means put the reminder away and change nothing else. If this reminder
+    // was a TEST fired while the app was paused (pauseUntil is still intact, because
+    // triggerReminder does not touch it), we must return the app to that paused
+    // state — never quietly start running again behind the user's back.
     if (this.pauseUntil !== undefined) {
       this.phase = PHASE.PAUSED;
       return [{ type: 'closeReminder' }, { type: 'closeOverlay' }];
@@ -331,8 +346,8 @@ class Engine {
       : [{ type: 'openReminder' }];
   }
 
-  // "Thử nhắc nhở" là một phép THỬ, không được phá trạng thái đang có. Giữ
-  // nguyên pauseUntil để skip() biết đường trả app về lại trạng thái tạm dừng.
+  // "Test reminder" is a TEST: it must not damage the current state. Leave
+  // pauseUntil intact so skip() knows to put the app back into its paused state.
   triggerReminder(now) {
     this.phase = PHASE.REMINDING;
     this.remindingSince = now;
@@ -355,9 +370,9 @@ class Engine {
     return [];
   }
 
-  // Áp dụng cài đặt mới ngay, nhưng không để mốc đang chạy dài hơn thời lượng
-  // vừa đặt: rút interval 45→30 hoặc thời gian nghỉ 10→2 mà mốc cũ vẫn giữ
-  // nguyên thì người dùng thấy app như bị treo ở con số cũ.
+  // Apply new settings immediately, but never let a running deadline outlast the
+  // duration just chosen: shortening the interval 45→30, or the break 10→2, while
+  // keeping the old deadline makes the app look frozen on the old number.
   updateSettings(now, settings) {
     this.settings = { ...settings };
     if (this.phase === PHASE.WORKING || this.phase === PHASE.BREAKING) {

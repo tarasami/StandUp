@@ -102,7 +102,7 @@ tệ nhất mà app này có thể gây ra, nên ngoài việc rải effect còn
 - `canNotify` ← Windows có đang bận không (toàn màn hình / trình chiếu / game). Tra bằng
   `SHQueryUserNotificationState`, **chỉ hỏi khi còn ≤15 giây tới hạn nhắc** cho đỡ tốn tài
   nguyên, có cache + throttle, và **fail-open**: tra cứu lỗi thì coi như được phép nhắc.
-  Xem [ghi chú kỹ thuật](ghi-chu-ky-thuat.md#nhường-toàn-màn-hình).
+  Xem [ghi chú kỹ thuật](technical-notes.md#nhường-toàn-màn-hình).
 
 Sau mỗi tick, `broadcast()` đẩy trạng thái mới xuống mọi cửa sổ đang mở và cập nhật tray
 icon (vẽ lại số phút còn lại, đổi màu theo pha).

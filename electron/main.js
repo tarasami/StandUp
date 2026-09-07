@@ -1,4 +1,8 @@
-// StandUp — main process: tray, cửa sổ, thông báo, idle detection, vòng tick 1s.
+// StandUp — main process: tray, windows, notifications, idle detection, 1s tick loop.
+//
+// NOTE ON LANGUAGE: comments are English, but user-facing strings stay Vietnamese —
+// tray menu labels, notification texts, and everything written to standup.log, which
+// users are asked to read and paste into bug reports. See CONTRIBUTING.md.
 const {
   app, BrowserWindow, Tray, Menu, Notification,
   powerMonitor, ipcMain, nativeImage, screen, shell,
@@ -21,10 +25,10 @@ let reminderWin = null;
 let onboardWin = null;
 let overlayWin = null;
 
-// Khi Windows tự chạy app lúc đăng nhập, không bung cửa sổ ra giữa màn hình.
+// When Windows starts the app at login, do not throw a window at the user.
 const startHidden = process.argv.includes('--hidden');
 
-// ---- Cài đặt (JSON trong thư mục userData) ----
+// ---- Settings (JSON inside the userData folder) ----
 
 function settingsFile() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -34,8 +38,8 @@ function loadSettings() {
   try {
     const parsed = parseSettingsJson(fs.readFileSync(settingsFile(), 'utf8'));
     if (parsed) return clampSettings(parsed);
-  } catch { /* chưa có file — lần chạy đầu tiên */ }
-  // File hỏng cũng rơi về đây: thà chạy với mặc định còn hơn không chạy.
+  } catch { /* no file yet — first run */ }
+  // A broken file lands here too: running with defaults beats not running.
   return { ...DEFAULT_SETTINGS };
 }
 
@@ -43,10 +47,11 @@ function saveSettings(s) {
   try {
     const file = settingsFile();
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    // Ghi ra file tạm rồi đổi tên: rename trong cùng thư mục là thao tác nguyên
-    // tử, nên crash hay mất điện giữa chừng cũng không để lại JSON cụt. Ghi đè
-    // thẳng thì một file cụt sẽ khiến loadSettings lặng lẽ quay về mặc định —
-    // mất sạch cài đặt và bắt người dùng onboarding lại từ đầu.
+    // Write to a temp file and rename: a rename within the same directory is
+    // atomic, so a crash or power loss mid-write never leaves truncated JSON.
+    // Writing in place means one truncated file makes loadSettings quietly fall
+    // back to defaults — every setting lost and the user pushed through
+    // onboarding all over again.
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
     fs.renameSync(tmp, file);
@@ -56,23 +61,25 @@ function saveSettings(s) {
   }
 }
 
-// App chạy nền trong tray rất khó quan sát khi có sự cố. Đặt biến môi trường
-// STANDUP_DEBUG=<đường dẫn file> để ghi vết CHI TIẾT (mỗi tick 1 dòng: trạng
-// thái, idle, ngưỡng) mà không cần mở DevTools. Chỉ dùng lúc gỡ lỗi sâu.
+// An app living in the tray is very hard to observe when something goes wrong. Set
+// the environment variable STANDUP_DEBUG=<file path> to write a DETAILED trace (one
+// line per tick: phase, idle, threshold) without opening DevTools. For deep
+// debugging only.
 function debugLog(line) {
   if (!process.env.STANDUP_DEBUG) return;
   try {
     fs.appendFileSync(process.env.STANDUP_DEBUG, `${new Date().toISOString()}\t${line}\n`);
-  } catch { /* nhật ký hỏng không được làm chết app */ }
+  } catch { /* a broken log must never kill the app */ }
 }
 
-// ---- Nhật ký sự kiện (LUÔN BẬT) ----
-// Khác debugLog: nhật ký này luôn ghi, nhưng CHỈ các sự kiện đáng chú ý (khởi
-// động, đổi trạng thái, thao tác người dùng, đổi cài đặt, lỗi, ngủ/thức, thoát)
-// vào userData/standup.log, để soi lại khi người dùng báo sự cố. Ba nguyên tắc
-// "chắc chắn": (1) ghi đồng bộ để không mất sự kiện lúc crash; (2) xoay vòng để
-// không bao giờ phình đầy đĩa; (3) bọc try/catch để ghi lỗi không làm chết app.
-const LOG_MAX_BYTES = 1_000_000; // ~1 MB rồi đẩy sang standup.log.1 (tối đa ~2 MB)
+// ---- Event log (ALWAYS ON) ----
+// Unlike debugLog, this one always writes, but ONLY noteworthy events (startup,
+// phase changes, user actions, settings changes, errors, sleep/wake, exit) into
+// userData/standup.log, so there is something to inspect when a user reports a
+// problem. Three rules that keep it dependable: (1) write synchronously so no event
+// is lost in a crash; (2) rotate so it can never fill the disk; (3) wrap in
+// try/catch so a logging failure cannot kill the app.
+const LOG_MAX_BYTES = 1_000_000; // ~1 MB, then roll over to standup.log.1 (~2 MB total)
 
 function logFile() {
   return path.join(app.getPath('userData'), 'standup.log');
@@ -84,24 +91,25 @@ function logEvent(level, message) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     try {
       if (shouldRotateLog(fs.statSync(file).size, LOG_MAX_BYTES)) {
-        // rename không đè được file đang tồn tại trên Windows → dọn .1 cũ trước.
+        // On Windows, rename cannot overwrite an existing file → drop the old .1 first.
         fs.rmSync(`${file}.1`, { force: true });
         fs.renameSync(file, `${file}.1`);
       }
-    } catch { /* chưa có file — lần ghi đầu, khỏi xoay vòng */ }
+    } catch { /* no file yet — first write, nothing to rotate */ }
     fs.appendFileSync(file, `${formatLogLine(new Date(), level, message)}\n`);
-  } catch { /* nhật ký hỏng KHÔNG được làm chết app */ }
+  } catch { /* a broken log must NEVER kill the app */ }
 }
 
-// ---- Bắt sự cố ngoài dự tính vào nhật ký ----
-// Nhật ký ở trên chỉ ghi các sự kiện CÓ TRẬT TỰ. Nhưng thứ cần nhất khi "app tự
-// nhiên hỏng" lại là những cú ngã ngoài dự tính: lỗi không bắt trong main
-// process, promise bị bỏ rơi, hay renderer (nơi phát âm báo + vẽ cửa sổ) chết —
-// không bắt thì chúng biến mất không dấu vết. Ở đây CHỦ ĐÍCH ghi log rồi cố giữ
-// app sống tiếp: đây là app chạy nền trong tray, thà nhắc tiếp còn hơn tự tắt vì
-// một lỗi thoáng qua. Đánh đổi: đăng ký uncaughtException khiến hộp thoại lỗi
-// mặc định của Electron im đi — nhưng một hộp thoại "JavaScript error" nhiện lên
-// giữa màn hình còn tệ hơn cho app nền; ta đổi nó lấy một dòng trong standup.log.
+// ---- Capture unexpected failures into the log ----
+// The log above only records ORDERLY events. But what you need most when an app
+// "just breaks" are the unexpected falls: an uncaught error in the main process, a
+// dropped promise, or a dead renderer (which is where the sound and the window
+// drawing live) — uncaught, they vanish without a trace. The DELIBERATE choice here
+// is to log and then try to keep the app alive: this is a background tray app, and
+// carrying on reminding beats shutting itself down over a passing error. The
+// trade-off: registering uncaughtException silences Electron's default error dialog
+// — but a "JavaScript error" box popping up mid-screen is worse for a background
+// app; we trade it for one line in standup.log.
 function installCrashLogging() {
   process.on('uncaughtException', (err, origin) => {
     logEvent('error', `Lỗi không bắt (${origin}): ${err && err.stack ? err.stack : err}`);
@@ -109,8 +117,9 @@ function installCrashLogging() {
   process.on('unhandledRejection', (reason) => {
     logEvent('error', `Promise bị bỏ rơi: ${reason && reason.stack ? reason.stack : reason}`);
   });
-  // Một handler ở tầng app bắt được renderer của MỌI cửa sổ. Renderer cửa sổ
-  // chính chết = mất âm báo + mất popup nhắc — đúng lớp lỗi "thông báo biến mất".
+  // One handler at app level catches the renderer of EVERY window. A dead main-window
+  // renderer means no sound and no reminder popup — exactly the "notifications
+  // disappeared" class of bug.
   app.on('render-process-gone', (_ev, contents, details) => {
     const which = mainWin && contents === mainWin.webContents ? 'cửa sổ chính'
       : reminderWin && contents === reminderWin.webContents ? 'cửa sổ nhắc'
@@ -119,39 +128,41 @@ function installCrashLogging() {
       : 'renderer';
     logEvent('error', `Renderer chết — ${which}: lý do=${details.reason}, mã thoát=${details.exitCode}`);
   });
-  // Tiến trình con (GPU, tiện ích…) chết: thường vô hại, nhưng GPU chết có thể
-  // làm mất hình/âm nên vẫn ghi lại để đối chiếu khi có sự cố.
+  // A dead child process (GPU, utility…) is usually harmless, but a dead GPU can
+  // cost us picture or sound, so record it for cross-checking when something breaks.
   app.on('child-process-gone', (_ev, details) => {
     const name = details.name ? ` ${details.name}` : '';
     logEvent('error', `Tiến trình con chết — ${details.type}${name}: lý do=${details.reason}, mã thoát=${details.exitCode}`);
   });
 }
 
-// Đăng ký AUMID qua registry để toast hiện banner ổn định. Shortcut Start Menu
-// (cơ chế cổ điển mà installer tạo) không đủ tin cậy: đã kiểm chứng trên máy
-// thật trường hợp toast chỉ vào Action Center mà không bật banner cho tới khi
-// có khoá này. Ghi mỗi lần khởi động — thao tác idempotent, HKCU không cần quyền
-// admin. Uninstaller dọn khoá này (build/installer.nsh).
+// Register the AUMID through the registry so toast banners appear reliably. The
+// Start Menu shortcut (the classic mechanism the installer creates) is not
+// dependable enough: on a real machine we reproduced toasts that only reached the
+// Action Center and never raised a banner until this key existed. Written on every
+// startup — the operation is idempotent, and HKCU needs no admin rights. The
+// uninstaller removes this key (build/installer.nsh).
 function registerAumid() {
   if (process.platform !== 'win32' || !app.isPackaged) return;
   const key = `HKCU\\Software\\Classes\\AppUserModelId\\${AUMID}`;
   try {
-    // REG_EXPAND_SZ chứ không phải REG_SZ — một số bản Windows chỉ đọc
-    // DisplayName cho banner ở kiểu này.
+    // REG_EXPAND_SZ, not REG_SZ — some Windows builds only read DisplayName for the
+    // banner when it has this type.
     execFileSync('reg', ['add', key, '/v', 'DisplayName', '/t', 'REG_EXPAND_SZ', '/d', 'StandUp', '/f'], { windowsHide: true });
-    // IconUri phải là đường dẫn tới FILE ẢNH. Trước đây chỗ này trỏ vào .exe —
-    // shell của Windows không rút được icon từ đó, mà cũng không đọc nổi
-    // assets/icon.png vì nó nằm bên trong app.asar. Nay electron-builder chép
-    // icon.png ra thẳng resources/ (xem extraResources trong package.json).
+    // IconUri must point at an IMAGE FILE. This used to point at the .exe — the
+    // Windows shell cannot extract an icon from that, and it could not read
+    // assets/icon.png either because that lives inside app.asar. electron-builder
+    // now copies icon.png straight into resources/ (see extraResources in
+    // package.json).
     const iconPath = path.join(process.resourcesPath, 'icon.png');
     if (fs.existsSync(iconPath)) {
       execFileSync('reg', ['add', key, '/v', 'IconUri', '/t', 'REG_SZ', '/d', iconPath, '/f'], { windowsHide: true });
     } else {
-      // Thà không có IconUri còn hơn để lại giá trị hỏng từ bản cũ: Windows
-      // sẽ tự lùi về icon mặc định thay vì cố đọc một đường dẫn vô nghĩa.
+      // No IconUri at all beats leaving a broken value behind from an older build:
+      // Windows falls back to the default icon instead of chasing a dead path.
       try {
         execFileSync('reg', ['delete', key, '/v', 'IconUri', '/f'], { windowsHide: true });
-      } catch { /* chưa từng có giá trị này thì thôi */ }
+      } catch { /* the value never existed — fine */ }
     }
   } catch (err) {
     console.error('Không đăng ký được AUMID cho toast:', err);
@@ -159,14 +170,15 @@ function registerAumid() {
   }
 }
 
-// Người dùng đã bấm ⚙ để xổ phần cài đặt ra chưa. Renderer là nơi quyết định
-// (bấm nút), báo về đây để cửa sổ co/giãn cho vừa — xem fitMain().
+// Has the user pressed the gear to expand the settings panel? The renderer decides
+// (it owns the button) and reports back here so the window can resize — see fitMain().
 let settingsOpen = false;
 
-// ---- Khởi động cùng Windows ----
+// ---- Start with Windows ----
 
-// Chỉ ghi mục khởi động khi app ĐÃ ĐÓNG GÓI. Bản dev trỏ vào electron.exe trong
-// node_modules — xoá node_modules sẽ để lại một mục khởi động chết trong registry.
+// Only write the startup entry when the app is PACKAGED. A dev build would point at
+// electron.exe inside node_modules — deleting node_modules would leave a dead
+// startup entry in the registry.
 function applyAutoStart(enabled) {
   if (!app.isPackaged) return;
   try {
@@ -177,46 +189,46 @@ function applyAutoStart(enabled) {
   }
 }
 
-// ---- Cửa sổ ----
+// ---- Windows ----
 
-// Cửa sổ chính co/giãn theo một trục: cài đặt đóng (chỉ trạng thái + nút) hay mở
-// (bấm ⚙ xổ cài đặt ra). Hai chiều cao đo thật bằng DevTools (viền cửa sổ Windows
-// chiếm 39px). Cắt vừa khít nội dung: dư thì thừa khoảng trống, thiếu thì nút bị
-// khuất + sinh thanh cuộn.
+// The main window resizes along one axis: settings closed (status + buttons only) or
+// open (the gear expands the panel). Both heights were measured for real with
+// DevTools (the Windows window frame takes 39px). Cut to fit the content exactly:
+// too much leaves empty space, too little hides buttons and adds a scrollbar.
 const HEIGHTS = {
-  compact: 384, // đóng — nội dung 331px, chỉ trạng thái + 2 nút + ⚙
-  full: 864,    // mở cài đặt — đo thật 824px nội dung + 39px viền = 863
+  compact: 384, // closed — 331px of content, just the status, 2 buttons and the gear
+  full: 864,    // settings open — measured 824px of content + 39px frame = 863
 };
 
 function createWindows() {
   mainWin = new BrowserWindow({
     width: 420,
-    height: HEIGHTS.compact, // mở ra ở dạng gọn; xổ cài đặt thì tự cao lên
+    height: HEIGHTS.compact, // opens compact; expanding the settings grows it
     resizable: false,
     autoHideMenuBar: true,
     backgroundColor: '#12141a',
-    show: false, // chỉ hiện khi nội dung sẵn sàng — tránh nháy khung trắng
+    show: false, // only show once the content is ready — avoids a white flash
     icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      // Cửa sổ này phát âm báo kể cả khi đang ẩn trong tray → không cho throttle.
+      // This window plays the alert sound even while hidden in the tray → no throttling.
       backgroundThrottling: false,
     },
   });
   mainWin.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
-  // Chuyển log của renderer vào nhật ký chẩn đoán — cửa sổ này thường bị ẩn,
-  // không mở được DevTools để xem lỗi.
+  // Forward renderer logs into the diagnostic log — this window is usually hidden,
+  // so there is no way to open DevTools and look at errors.
   mainWin.webContents.on('console-message', (...args) => {
     const d = args[0];
     debugLog(`renderer: ${d && typeof d === 'object' && d.message ? d.message : args[2]}`);
   });
   mainWin.once('ready-to-show', () => {
-    // Lần chạy đầu thì onboarding hiện trước; autostart thì nằm im trong tray.
+    // On first run onboarding comes first; on autostart we stay quiet in the tray.
     if (!startHidden && engine.settings.onboarded) mainWin.show();
   });
-  // Đóng cửa sổ = thu về tray, app vẫn chạy nền.
+  // Closing the window = collapse to the tray, the app keeps running.
   mainWin.on('close', (e) => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -247,19 +259,21 @@ function createWindows() {
     }
   });
 
-  // Màn nghỉ che màn hình. Dựng sẵn từ đầu (ẩn) chứ không tạo mới mỗi lần nghỉ:
-  // tạo cửa sổ mất cả trăm ms và nháy khung trắng, rất lộ khi nó chiếm cả màn hình.
+  // The break overlay. Built up front (hidden) rather than created on each break:
+  // creating a window costs hundreds of milliseconds and flashes a white frame,
+  // which is glaring when it covers the entire screen.
   overlayWin = new BrowserWindow({
     show: false,
     frame: false,
-    // Không dùng setFullScreen: trên Windows nó chạy hoạt ảnh chuyển desktop,
-    // chậm và giật. Tự đặt bounds đúng bằng màn hình vừa nhanh vừa gọn.
+    // Do not use setFullScreen: on Windows it runs a desktop-switch animation that
+    // is slow and janky. Setting bounds to the display ourselves is faster and simpler.
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
     movable: false,
     minimizable: false,
-    // Nền trong mờ, thấy được công việc phía sau (màu thật nằm ở CSS).
+    // Semi-transparent background so the work behind stays visible (the real colour
+    // lives in the CSS).
     transparent: true,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -279,41 +293,44 @@ function createWindows() {
 
 function fitMain() {
   if (!mainWin || mainWin.isDestroyed()) return;
-  // Đo theo màn hình đang chứa cửa sổ, không phải màn hình chính: máy nhiều màn
-  // hình rất hay có một cái thấp hơn hẳn.
+  // Measure against the display that currently holds the window, not the primary
+  // one: multi-monitor setups very often include one noticeably shorter screen.
   const wa = screen.getDisplayMatching(mainWin.getBounds()).workArea;
   const want = mainWindowHeight(settingsOpen, wa.height, HEIGHTS);
   const b = mainWin.getBounds();
-  // Đổi CẢ vị trí chứ không chỉ chiều cao: cửa sổ giãn xuống dưới, đang ở giữa
-  // màn hình mà xổ cài đặt ra là đáy thò khỏi màn hình, nuốt mất nút Lưu.
+  // Change the POSITION too, not just the height: the window grows downward, so a
+  // window sitting mid-screen would push its bottom off the display when the
+  // settings expand, swallowing the Save button.
   const y = clampWindowY(b.y, want, wa);
   if (b.height === want && b.y === y) return;
-  // Trên Windows, setSize/setBounds bị bỏ qua với cửa sổ resizable:false → mở khoá tạm.
+  // On Windows, setSize/setBounds is ignored for a resizable:false window → unlock briefly.
   mainWin.setResizable(true);
   mainWin.setBounds({ x: b.x, y, width: b.width, height: want });
   mainWin.setResizable(false);
 }
 
-// Effect từ engine (và cả cú bấm vào toast) có thể tới đúng lúc app đang thoát,
-// khi cửa sổ nhắc đã bị huỷ — chạm vào nó lúc đó là làm chết main process.
-// Mọi thao tác với cửa sổ nhắc phải đi qua hai hàm dưới đây.
+// An effect from the engine (or a click on a toast) can arrive exactly while the app
+// is quitting, once the reminder window has been destroyed — touching it then kills
+// the main process. Every operation on the reminder window must go through the two
+// functions below.
 function reminderAlive() {
   return reminderWin && !reminderWin.isDestroyed();
 }
 
 function showReminder() {
   if (!reminderAlive()) return;
-  // Bung ra ở màn hình đang có con trỏ chuột — tức màn hình người dùng đang làm
-  // việc. Dùng màn hình chính thì trên máy nhiều màn hình lời nhắc sẽ hiện ở
-  // một chỗ khác hẳn nơi người dùng đang nhìn, coi như không nhắc.
-  // workArea đã trừ sẵn taskbar; góc dưới-phải hay giữa là do người dùng chọn.
+  // Pop up on the display holding the mouse cursor — i.e. the screen the user is
+  // working on. Using the primary display would put the reminder somewhere the user
+  // is not even looking on a multi-monitor setup, which is as good as not reminding.
+  // workArea already excludes the taskbar; corner vs centre is the user's choice.
   const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const { x, y } = reminderXY(engine.settings.reminderPosition, wa, reminderWin.getBounds());
   reminderWin.setPosition(x, y);
-  // showInactive: hiện cửa sổ nhưng KHÔNG cướp focus — không phá gõ phím.
-  // Nhưng showInactive chỉ đặt cửa sổ vào ĐÚNG CHỖ CŨ trong nhóm always-on-top,
-  // nên vẫn có thể nằm dưới một cửa sổ always-on-top khác (đã đo: hạng 1, dưới
-  // thanh taskbar). moveTop() nâng hẳn lên đỉnh nhóm mà vẫn không cướp focus.
+  // showInactive: show the window but do NOT steal focus — never interrupt typing.
+  // However showInactive only puts the window back at its OLD rank within the
+  // always-on-top group, so it can still end up beneath another always-on-top window
+  // (measured: rank 1, below the taskbar). moveTop() lifts it to the top of the
+  // group while still not stealing focus.
   reminderWin.showInactive();
   reminderWin.moveTop();
 }
@@ -324,14 +341,15 @@ function overlayAlive() {
 
 function showOverlay() {
   if (!overlayAlive()) return;
-  // Phủ trọn màn hình người dùng đang làm việc (theo con trỏ, như cửa sổ nhắc).
-  // Dùng bounds chứ không workArea: có chừa taskbar ra thì màn nghỉ trông như một
-  // cửa sổ to đùng, và người dùng bấm luôn sang app khác — mất tác dụng.
+  // Cover the whole display the user is working on (chosen by cursor, like the
+  // reminder window). Use bounds, not workArea: leaving the taskbar visible makes
+  // the overlay look like just a very large window, and the user clicks straight
+  // past it into another app — defeating the point.
   const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).bounds;
   overlayWin.setBounds({ x: d.x, y: d.y, width: d.width, height: d.height });
-  // Khác cửa sổ nhắc (showInactive, tránh cướp focus lúc đang gõ): màn nghỉ PHẢI
-  // nhận focus, vì người dùng vừa tự bấm "Nghỉ ngay" và phím Esc chỉ chạy khi
-  // cửa sổ đang được focus.
+  // Unlike the reminder window (showInactive, to avoid stealing focus mid-typing),
+  // the overlay MUST take focus: the user just pressed "Break now" themselves, and
+  // the Esc key only works while the window is focused.
   overlayWin.show();
   overlayWin.focus();
   overlayWin.moveTop();
@@ -341,7 +359,7 @@ function hideOverlay() {
   if (overlayAlive() && overlayWin.isVisible()) overlayWin.hide();
 }
 
-// Lần chạy đầu: một màn hình duy nhất, chọn khoảng nhắc rồi bắt đầu.
+// First run: a single screen, pick the interval and go.
 function createOnboarding() {
   onboardWin = new BrowserWindow({
     width: 460,
@@ -363,7 +381,7 @@ function createOnboarding() {
 }
 
 function showMain() {
-  // Chưa qua onboarding thì luôn đưa người dùng về màn hình đó trước.
+  // Before onboarding is done, always send the user back to that screen first.
   if (onboardWin && !onboardWin.isDestroyed()) {
     onboardWin.show();
     onboardWin.focus();
@@ -376,8 +394,9 @@ function showMain() {
 
 // ---- Tray ----
 
-// Vẽ icon tray động: số phút còn lại (hoặc ký hiệu trạng thái) trên nền màu.
-// Font pixel 3×5 phóng đôi trong khung 16×16 — đủ đọc ở khay hệ thống.
+// Draw the tray icon dynamically: minutes remaining (or a status symbol) on a
+// coloured background. A 3×5 pixel font, doubled, inside a 16×16 frame — legible
+// enough in the notification area.
 const GLYPHS = {
   0: ['###', '#.#', '#.#', '#.#', '###'],
   1: ['.#.', '##.', '.#.', '.#.', '###'],
@@ -391,7 +410,7 @@ const GLYPHS = {
   9: ['###', '#.#', '###', '..#', '###'],
   '!': ['#', '#', '#', '.', '#'],
   '-': ['...', '...', '###', '...', '...'],
-  P: ['#.#', '#.#', '#.#', '#.#', '#.#'], // ký hiệu tạm dừng ‖
+  P: ['#.#', '#.#', '#.#', '#.#', '#.#'], // the pause symbol ‖
 };
 const GREEN = [16, 163, 127];
 const AMBER = [240, 180, 41];
@@ -406,13 +425,13 @@ function trayIcon(text, [r, g, b]) {
     const i = (y * S + x) * 4;
     buf[i] = pb; buf[i + 1] = pg; buf[i + 2] = pr; buf[i + 3] = 255;
   };
-  // Nền: hình vuông cắt chéo góc 2px cho mềm mắt.
+  // Background: a square with 2px chamfered corners, easier on the eye.
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       if (Math.min(x, S - 1 - x) + Math.min(y, S - 1 - y) >= 2) put(x, y, [r, g, b]);
     }
   }
-  // Chữ trắng, căn giữa.
+  // White text, centred.
   const glyphs = [...String(text)].map((ch) => GLYPHS[ch]).filter(Boolean);
   const wTotal = glyphs.reduce((w, gl) => w + gl[0].length * SCALE, 0) + (glyphs.length - 1) * SCALE;
   let x0 = Math.round((S - wTotal) / 2);
@@ -478,7 +497,7 @@ function updateTray(st) {
     idle: ['-', GRAY],
     paused: ['P', GRAY],
   }[st.phase] || ['-', GRAY];
-  // Chỉ vẽ lại icon khi nội dung đổi (mỗi phút một lần) — tránh churn GDI.
+  // Only redraw the icon when its content changes (about once a minute) — avoids GDI churn.
   const key = `${iconText}|${iconColor.join()}`;
   if (key !== lastTrayKey) {
     lastTrayKey = key;
@@ -486,7 +505,7 @@ function updateTray(st) {
   }
 }
 
-// ---- Effect từ engine ----
+// ---- Effects from the engine ----
 
 function applyEffects(fx) {
   for (const e of fx) {
@@ -504,18 +523,19 @@ function applyEffects(fx) {
         hideOverlay();
         break;
       case 'sound':
-        // Phát trong renderer cửa sổ chính (Web Audio) — chạy cả khi cửa sổ ẩn.
+        // Played in the main window's renderer (Web Audio) — works while hidden too.
         if (mainWin && !mainWin.isDestroyed()) {
           mainWin.webContents.send('sound', e.kind);
-          // Âm báo ở app chạy nền rất dễ hỏng thầm lặng (bị autoplay chặn, bị
-          // throttle khi ẩn). Ghi lại xem thực tế có tiếng ra hay không.
+          // Sound in a background app fails silently very easily (blocked by the
+          // autoplay policy, throttled while hidden). Record whether anything
+          // actually came out.
           if (process.env.STANDUP_DEBUG) {
-            // Lấy mẫu nhiều mốc: bộ đo độ ồn của Chromium có độ trễ, một mốc
-            // duy nhất rất dễ cho kết quả âm tính giả.
+            // Sample at several points: Chromium's audibility meter lags, and a
+            // single sample gives false negatives far too often.
             for (const ms of [150, 300, 500, 700, 1000, 1400]) {
               setTimeout(() => {
                 if (mainWin && !mainWin.isDestroyed()) {
-                  debugLog(`am bao "${e.kind}" +${ms}ms: co tieng ra = ${mainWin.webContents.isCurrentlyAudible()}`);
+                  debugLog(`sound "${e.kind}" +${ms}ms: audible = ${mainWin.webContents.isCurrentlyAudible()}`);
                 }
               }, ms);
             }
@@ -533,21 +553,21 @@ function applyEffects(fx) {
   }
 }
 
-// Chạy một hành động trên engine rồi phát trạng thái mới ngay (không đợi tick).
+// Run an engine action and broadcast the new state immediately (do not wait for a tick).
 function act(fn) {
   applyEffects(fn());
   broadcast();
 }
 
-// Bọc một thao tác do NGƯỜI DÙNG khởi xướng: ghi nhật ký rồi chạy. Việc đổi
-// trạng thái kéo theo sẽ được logPhaseChange() ghi riêng, nên nhật ký cho thấy
-// cả ý định (bấm gì) lẫn kết quả (trạng thái chuyển thế nào).
+// Wrap an action started by the USER: log it, then run it. Any resulting phase change
+// is logged separately by logPhaseChange(), so the log shows both the intent (what
+// they pressed) and the outcome (how the state moved).
 function userAction(label, fn) {
   logEvent('info', `Thao tác: ${label}`);
   act(fn);
 }
 
-// Ghi mỗi lần engine ĐỔI trạng thái — chỉ khi khác đi, không phải mỗi tick.
+// Log every time the engine CHANGES phase — only on change, not on every tick.
 let lastLoggedPhase = null;
 function logPhaseChange() {
   if (engine.phase === lastLoggedPhase) return;
@@ -556,8 +576,9 @@ function logPhaseChange() {
   const detail = {
     reminding: engine.message ? ` — "${engine.message.title}"` : '',
     breaking: ` — nghỉ ${s.breakMins} phút${engine.stretch ? `, động tác "${engine.stretch.name}"` : ''}`,
-    // Thời gian còn lại THẬT tới lần nhắc kế — đúng cho cả chu kỳ đầy đủ (~45'),
-    // hoãn tay và tự-hoãn (~5'). Ghi "chu kỳ 45 phút" cứng sẽ nói dối lúc hoãn.
+    // The REAL time left until the next reminder — correct for a full cycle (~45'),
+    // a manual snooze and an auto-snooze (~5') alike. Hard-coding "45 minute cycle"
+    // would be a lie whenever we snoozed.
     working: ` — còn ~${Math.max(1, Math.round((engine.deadline - Date.now()) / 60_000))} phút tới lần nhắc`,
     idle: ' — người dùng rời máy',
     paused: engine.pauseUntil == null ? ' — đến khi bật lại' : ' — có hẹn giờ',
@@ -566,26 +587,27 @@ function logPhaseChange() {
   lastLoggedPhase = engine.phase;
 }
 
-// ---- Phát hiện toàn màn hình / trình chiếu (để KHÔNG bung lời nhắc đè lên) ----
-// Cửa sổ nhắc là always-on-top mà Windows KHÔNG tự nén như toast — nên nếu không
-// tự kiểm, lời nhắc sẽ nhảy đè lên game full-screen, video, hay lúc họp chia sẻ
-// màn hình. Hỏi chính API mà Windows dùng để quyết định có hiện toast không:
-// SHQueryUserNotificationState (chỉ 5 = desktop bình thường mới bung — xem
-// notificationsAllowedFromState). Gọi native qua PowerShell + Add-Type, giống
-// cách app chạy 'reg': không thêm phụ thuộc, không cần trình biên dịch lúc build.
+// ---- Full-screen / presentation detection (so we do NOT pop a reminder over it) ----
+// The reminder window is always-on-top and Windows does NOT suppress it the way it
+// suppresses toasts — so without checking ourselves, a reminder would jump on top of
+// a full-screen game, a video, or a screen-shared meeting. Ask the very API Windows
+// uses to decide whether to show a toast: SHQueryUserNotificationState (only 5 = a
+// normal desktop lets us pop — see notificationsAllowedFromState). We call the
+// native function through PowerShell + Add-Type, the same way the app already runs
+// 'reg': no extra dependency and no compiler needed at build time.
 //
-// Ba nguyên tắc để việc hỏi han này KHÔNG bao giờ hại tính năng nhắc:
-//   (1) BẤT ĐỒNG BỘ + có cache — tick đọc cache tức thì, không bao giờ bị chặn;
-//   (2) TIẾT LƯU — chỉ hỏi khi lời nhắc sắp tới (≤15s) hoặc đang quá hạn chờ, và
-//       nhiều nhất mỗi 8 giây một lần, để không spawn PowerShell liên tục;
-//   (3) FAIL-OPEN — mọi trục trặc (lỗi, timeout, số lạ) đều coi như ĐƯỢC PHÉP,
-//       thà lỡ nhắc lúc full-screen còn hơn im lặng tắt hẳn tính năng nhắc.
-const DND_APPROACH_SECS = 15;       // chỉ bắt đầu hỏi khi còn ≤15s nữa là tới giờ
-const DND_CHECK_INTERVAL_MS = 8000; // hỏi nhiều nhất mỗi 8 giây
-const DND_QUERY_TIMEOUT_MS = 8000;  // hỏi quá lâu = coi như hỏng → fail-open
+// Three rules that keep this check from ever harming the reminders themselves:
+//   (1) ASYNC + cached — the tick reads the cache instantly and never blocks;
+//   (2) THROTTLED — only ask when a reminder is close (≤15s) or already overdue, and
+//       at most once every 8 seconds, so we never spawn PowerShell continuously;
+//   (3) FAIL-OPEN — any trouble (error, timeout, odd number) counts as ALLOWED;
+//       missing one reminder during full-screen beats silently killing reminders.
+const DND_APPROACH_SECS = 15;       // only start asking within 15s of the deadline
+const DND_CHECK_INTERVAL_MS = 8000; // ask at most once every 8 seconds
+const DND_QUERY_TIMEOUT_MS = 8000;  // too slow to answer = treat as broken → fail-open
 
-// Truyền C# qua -EncodedCommand (base64 UTF-16LE) để né sạch mọi rắc rối trích
-// dẫn lồng nhau. $ProgressPreference tắt để stdout chỉ còn đúng con số trạng thái.
+// Pass the C# through -EncodedCommand (base64 UTF-16LE) to sidestep every nested
+// quoting problem. $ProgressPreference is off so stdout carries only the state number.
 const DND_PS = [
   "$ProgressPreference='SilentlyContinue'",
   'Add-Type -TypeDefinition @"',
@@ -601,9 +623,9 @@ const DND_PS = [
 ].join('\n');
 const DND_B64 = Buffer.from(DND_PS, 'utf16le').toString('base64');
 
-let notifyAllowed = true;  // cache: Windows có đang cho phép bung lời nhắc không
-let dndChecking = false;   // đang có một truy vấn chạy dở (đừng spawn chồng)
-let lastDndCheckAt = 0;    // mốc lần hỏi gần nhất (để tiết lưu)
+let notifyAllowed = true;  // cache: is Windows currently letting us pop a reminder
+let dndChecking = false;   // a query is already in flight (do not spawn on top of it)
+let lastDndCheckAt = 0;    // when we last asked (for throttling)
 
 function refreshNotifyAllowed() {
   if (process.platform !== 'win32') { notifyAllowed = true; return; }
@@ -615,7 +637,7 @@ function refreshNotifyAllowed() {
     { timeout: DND_QUERY_TIMEOUT_MS, windowsHide: true }, (err, stdout) => {
       dndChecking = false;
       const was = notifyAllowed;
-      // Lỗi/timeout → fail-open: không để việc hỏi hỏng làm tắt tính năng nhắc.
+      // Error/timeout → fail-open: a broken query must never disable reminders.
       notifyAllowed = err ? true : notificationsAllowedFromState(stdout);
       if (was && !notifyAllowed) {
         logEvent('info', `Windows đang bận (toàn màn hình/trình chiếu) — tạm hoãn lời nhắc tới khi rảnh [trạng thái ${String(stdout).trim()}]`);
@@ -625,7 +647,7 @@ function refreshNotifyAllowed() {
     });
 }
 
-// ---- Vòng tick & phát trạng thái ----
+// ---- Tick loop & state broadcast ----
 
 function idleSecs() {
   return powerMonitor.getSystemIdleTime();
@@ -635,17 +657,17 @@ function tick() {
   const now = Date.now();
   const idle = idleSecs();
   const pre = engine.status(now, idle);
-  // Chỉ hỏi Windows khi tính năng "ẩn khi full màn hình" đang BẬT và lời nhắc sắp
-  // tới (hoặc đang quá hạn chờ) — tắt tính năng thì khỏi hỏi, khỏi spawn gì.
-  // refreshNotifyAllowed tự tiết lưu nên gọi mỗi tick vô hại.
+  // Only ask Windows when the "hide during full-screen" feature is ON and a reminder
+  // is nearly due (or already overdue) — with the feature off we ask nothing and
+  // spawn nothing. refreshNotifyAllowed throttles itself, so every-tick calls are safe.
   if (engine.settings.deferFullscreen && pre.phase === 'working' && pre.remainingSecs <= DND_APPROACH_SECS) {
     refreshNotifyAllowed();
   }
-  // Tắt tính năng → LUÔN cho nhắc (kể cả full màn hình); bật → theo trạng thái
-  // Windows. Bao giờ notifyAllowed cũng bắt đầu là true nên tắt tính năng là về
-  // đúng hành vi cũ, không phụ thuộc lần hỏi gần nhất.
+  // Feature off → ALWAYS allow reminding (even in full-screen); on → follow the
+  // Windows state. notifyAllowed always starts out true, so turning the feature off
+  // restores the old behaviour exactly, regardless of the last query result.
   const canNotify = engine.settings.deferFullscreen ? notifyAllowed : true;
-  debugLog(`${engine.phase}\tidle=${idle}\tnguong=${engine.idleThresholdSecs()}\tnhac_duoc=${canNotify}\tan_full=${engine.settings.deferFullscreen}`);
+  debugLog(`${engine.phase}\tidle=${idle}\tthreshold=${engine.idleThresholdSecs()}\tcanNotify=${canNotify}\tdeferFullscreen=${engine.settings.deferFullscreen}`);
   applyEffects(engine.tick(now, idle, canNotify));
   broadcast();
 }
@@ -653,10 +675,11 @@ function tick() {
 function broadcast() {
   logPhaseChange();
   const st = engine.status(Date.now(), idleSecs());
-  // Lưới đỡ: một cửa sổ che kín màn hình mà kẹt lại thì người dùng coi như mất
-  // máy — hậu quả nặng hơn hẳn mọi lỗi khác của app này. Effect đóng overlay đã
-  // rải ở mọi lối ra khỏi giờ nghỉ, nhưng ở đây kiểm lại theo trạng thái thật
-  // mỗi giây: không còn nghỉ mà overlay còn hiện thì đóng ngay.
+  // Safety net: a window covering the whole screen that gets stuck effectively takes
+  // the user's machine away — far worse than any other bug this app could have. The
+  // close-overlay effect is already spread across every exit from a break, but here
+  // we re-check against the real state every second: not on a break any more and the
+  // overlay is still up → close it immediately.
   if (st.phase !== 'breaking') hideOverlay();
   for (const w of [mainWin, reminderWin, onboardWin, overlayWin]) {
     if (w && !w.isDestroyed()) w.webContents.send('status', st);
@@ -664,13 +687,13 @@ function broadcast() {
   updateTray(st);
 }
 
-// ---- IPC cho renderer ----
+// ---- IPC for the renderers ----
 
 function wireIpc() {
   ipcMain.handle('get-status', () => engine.status(Date.now(), idleSecs()));
   ipcMain.handle('get-settings', () => ({ ...engine.settings }));
   ipcMain.handle('set-settings', (_ev, raw) => {
-    // Giữ nguyên cờ onboarded — màn hình cài đặt không được phép bật lại onboarding.
+    // Preserve the onboarded flag — the settings screen must never re-trigger onboarding.
     const s = clampSettings({ ...raw, onboarded: engine.settings.onboarded });
     engine.updateSettings(Date.now(), s);
     saveSettings(s);
@@ -679,14 +702,14 @@ function wireIpc() {
     broadcast();
     return s;
   });
-  // Renderer cần biết đang chạy bản đóng gói hay bản dev để hiển thị đúng ghi chú
-  // về mục "khởi động cùng Windows" (bản dev không ghi mục khởi động).
+  // The renderer needs to know whether this is a packaged or a dev build so it can
+  // show the right note about "start with Windows" (a dev build writes no startup entry).
   ipcMain.handle('get-env', () => ({ packaged: app.isPackaged }));
   ipcMain.handle('complete-onboarding', (_ev, raw) => {
     const now = Date.now();
     const s = clampSettings({ ...engine.settings, ...raw, onboarded: true });
     engine.updateSettings(now, s);
-    engine.newCycle(now); // đếm lại từ đầu với khoảng vừa chọn
+    engine.newCycle(now); // start counting afresh with the interval just chosen
     saveSettings(s);
     applyAutoStart(s.autoStart);
     logEvent('info', `Hoàn tất onboarding — chu kỳ=${s.intervalMins}', tự khởi động=${s.autoStart}, âm=${s.sound}`);
@@ -702,7 +725,7 @@ function wireIpc() {
   });
   ipcMain.on('action', (_ev, name) => {
     const now = Date.now();
-    // [nhãn nhật ký, hàm chạy] — nhãn để ghi lại người dùng đã bấm gì.
+    // [log label, function to run] — the label records what the user pressed.
     const actions = {
       takeBreak: ['Nghỉ ngay', () => engine.takeBreak(now)],
       snooze: ['Hoãn 5 phút', () => engine.snooze(now)],
@@ -716,52 +739,53 @@ function wireIpc() {
     const a = actions[name];
     if (a) userAction(a[0], a[1]);
   });
-  // Người dùng bấm ⚙ xổ/thu phần cài đặt → co giãn cửa sổ cho vừa.
+  // The user pressed the gear to expand/collapse the settings → resize the window to fit.
   ipcMain.on('toggle-settings', (_ev, open) => {
     settingsOpen = !!open;
     fitMain();
   });
 }
 
-// ---- Khởi động ----
+// ---- Startup ----
 
-// Chỉ cho chạy 1 instance — mở lần 2 thì hiện cửa sổ của instance đang chạy.
+// Allow a single instance only — launching again surfaces the running instance.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  // Cắm bắt-sự-cố NGAY từ đầu — trước cả khi dựng cửa sổ — để lỗi lúc khởi động
-  // cũng vào được nhật ký.
+  // Install crash logging FIRST — before any window exists — so failures during
+  // startup make it into the log too.
   installCrashLogging();
 
-  // Âm báo được tổng hợp bằng Web Audio, không do người dùng bấm nút — Chromium
-  // chặn phát tự động nếu thiếu switch này.
+  // The alert sound is synthesised with Web Audio and is not triggered by a user
+  // gesture — Chromium blocks autoplay without this switch.
   app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
   app.on('second-instance', showMain);
 
-  // Hai handler 'close' của cửa sổ chặn việc đóng để app sống tiếp trong tray;
-  // cờ isQuitting là lối thoát duy nhất. Trước đây chỉ menu Thoát mới hạ cờ,
-  // nên mọi đường thoát khác — Windows logoff, shutdown, app.quit() từ chỗ
-  // khác — đều bị app giữ lại cho tới khi hệ điều hành cưỡng bức tắt.
+  // The two window 'close' handlers block closing so the app survives in the tray;
+  // the isQuitting flag is the only way out. It used to be lowered only by the Quit
+  // menu item, so every other exit path — Windows logoff, shutdown, app.quit() from
+  // elsewhere — was held back by the app until the OS forced it down.
   app.on('before-quit', () => {
     app.isQuitting = true;
     logEvent('info', 'Thoát app');
   });
 
   app.whenReady().then(() => {
-    // Windows cần AppUserModelID để toast hiển thị; khi chưa đóng gói,
-    // dùng đường dẫn exe là cách được Electron khuyến nghị cho chế độ dev.
+    // Windows needs an AppUserModelID for toasts to display; when not packaged,
+    // using the exe path is what Electron recommends for dev mode.
     app.setAppUserModelId(app.isPackaged ? AUMID : process.execPath);
     registerAumid();
 
     engine = new Engine(loadSettings(), Date.now());
     const cfg = engine.settings;
     logEvent('info', `Khởi động — đóng gói=${app.isPackaged}, ẩn=${startHidden}, chu kỳ=${cfg.intervalMins}', nghỉ=${cfg.breakMins}', rời máy=${cfg.idleMins}', âm=${cfg.sound}, tự khởi động=${cfg.autoStart}, vị trí nhắc=${cfg.reminderPosition}, ẩn khi full=${cfg.deferFullscreen}, màn nghỉ=${cfg.breakOverlay}, onboarded=${cfg.onboarded}`);
-    // Mục khởi động có thể biến mất ngoài tầm kiểm soát của app — uninstaller
-    // của bản cũ xoá nó khi cài đè là trường hợp đã gặp thật. App lại chỉ ghi
-    // mục này lúc người dùng bấm Lưu, nên giao diện cứ tick "Khởi động cùng
-    // Windows" trong khi thực tế đã tắt từ lâu. Đối chiếu lại mỗi lần chạy;
-    // setLoginItemSettings là thao tác idempotent nên gọi thừa cũng vô hại.
+    // The startup entry can vanish outside the app's control — an old build's
+    // uninstaller removing it during an over-install is a case we hit for real. And
+    // the app only writes that entry when the user presses Save, so the UI would
+    // keep "Start with Windows" ticked long after it had actually been turned off.
+    // Re-assert it on every run; setLoginItemSettings is idempotent, so a redundant
+    // call is harmless.
     applyAutoStart(engine.settings.autoStart);
     createWindows();
     if (!engine.settings.onboarded) createOnboarding();
@@ -769,11 +793,11 @@ if (!app.requestSingleInstanceLock()) {
     wireIpc();
 
     setInterval(tick, 1000);
-    // Tỉnh dậy sau sleep → tick ngay để engine xử lý khoảng trống thời gian.
+    // Waking from sleep → tick immediately so the engine handles the time gap.
     powerMonitor.on('resume', () => { logEvent('info', 'Máy thức dậy sau khi ngủ'); tick(); });
     powerMonitor.on('suspend', () => logEvent('info', 'Máy chuẩn bị ngủ'));
   });
 
-  // App tray: không thoát khi mọi cửa sổ bị ẩn/đóng.
+  // Tray app: do not quit when every window is hidden or closed.
   app.on('window-all-closed', () => {});
 }

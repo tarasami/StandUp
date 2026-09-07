@@ -174,7 +174,7 @@ hình vẫn **trượt ngang 18px** vì animation căn khung nằm trên chính 
 
 **Bẫy khi đo "hình có động không":** động tác có đoạn **giữ** dài (gập lưng giữ 60° khá lâu)
 mà lấy mẫu góc trong một cửa sổ **ngắn** thì rất dễ rơi trúng đoạn giữ → kết luận nhầm là
-hình đứng im. Phải lấy mẫu trọn một chu kỳ. Xem [docs/kiem-thu.md](kiem-thu.md).
+hình đứng im. Phải lấy mẫu trọn một chu kỳ. Xem [docs/testing.md](testing.md).
 
 ---
 

@@ -12,12 +12,13 @@
     <div id="ov-countdown" class="ov-countdown">05:00</div>
 
     <section class="ov-card">
-      <!-- Bốn kiểu hình minh hoạ, vẽ bằng SVG/CSS (mỗi hình vài KB). JS chỉ hiện MỘT:
-           - ov-fig  : hình que nhìn thẳng — 6 động tác (vai, cổ, vươn, cổ tay, đi, nhón).
-           - ov-side : hình que nhìn NGHIÊNG — riêng cho gập lưng, vì gập người về phía
-                       trước mà nhìn thẳng thì không thể đọc ra (chỉ thấy người co lại).
-           - ov-eyes : hình mắt — cho động tác nghỉ mắt (que người không có mặt).
-           - ov-icon : emoji, đường lùi an toàn nếu động tác chưa có hình. -->
+      <!-- Four kinds of figure, drawn in SVG/CSS (a few KB each). JS shows only ONE:
+           - ov-fig  : front-facing stick figure — 6 stretches (shoulders, neck, reach,
+                       wrist, walk, calf raise).
+           - ov-side : SIDE-ON stick figure — only for the forward bend, because bending
+                       forward is unreadable head-on (the figure just appears to shrink).
+           - ov-eyes : a pair of eyes — for the eye rest (a stick figure has no face).
+           - ov-icon : emoji, the safe fallback when a stretch has no drawing yet. -->
       <svg id="ov-fig" class="ov-fig" viewBox="0 0 200 210" aria-hidden="true">
         <g class="body">
           <g class="upper">
@@ -28,9 +29,9 @@
             <line class="arm arm-r" x1="128" y1="88" x2="134" y2="126"/>
             <line class="hand hand-l" x1="66" y1="126" x2="58" y2="140"/>
             <line class="hand hand-r" x1="134" y1="126" x2="142" y2="140"/>
-            <!-- Tay dài đúng tầm với (buông tới ngang đùi). Chỉ dùng cho động tác
-                 vươn người: tay ngắn ở trên giơ lên vẫn không qua khỏi đỉnh đầu,
-                 nên không ra được tư thế "vươn thẳng lên cao". -->
+            <!-- Full-length arms (reaching down to the thighs). Used only by the
+                 overhead reach: the short arms above never clear the top of the head,
+                 so they cannot produce a "reaching straight up" pose. -->
             <line class="reach-arm reach-l" x1="72" y1="88" x2="64" y2="156"/>
             <line class="reach-arm reach-r" x1="128" y1="88" x2="136" y2="156"/>
           </g>
@@ -40,9 +41,10 @@
       </svg>
 
       <svg id="ov-side" class="ov-side" viewBox="0 0 200 210" aria-hidden="true">
-        <!-- Nhìn nghiêng, mặt quay sang phải. Thân trên gập tại hông; cánh tay tự
-             xoay ngược lại đúng bằng góc gập để luôn buông thẳng xuống theo trọng
-             lực — đó mới ra dáng gập người với tay buông về phía bàn chân. -->
+        <!-- Side view, facing right. The upper body folds at the hip; the arm
+             counter-rotates by exactly the fold angle so it always hangs straight down
+             with gravity — which is what reads as bending with the arms reaching for
+             the feet. -->
         <g class="s-upper">
           <circle class="head" cx="72" cy="46" r="17"/>
           <line x1="72" y1="63" x2="72" y2="78"/>

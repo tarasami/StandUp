@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # Không cần `npm install`: cả hai bộ test chỉ import module trong repo và
-      # `node:assert`, không đụng tới node_modules. Engine cố tình không phụ thuộc
-      # Electron — đó là lý do nó test được ở đây trên Linux.
+      # No `npm install` needed: both test suites import only modules from this repo
+      # plus `node:assert`, never touching node_modules. The engine deliberately has no
+      # Electron dependency — which is why it can be tested here on Linux.
       - run: npm test
