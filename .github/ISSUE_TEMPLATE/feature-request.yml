@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Trước khi viết, ngó qua [lộ trình](../blob/master/README.md#lộ-trình) xem đã có chưa,
-        và [triết lý dự án](../blob/master/CONTRIBUTING.md#triết-lý) xem có hợp hướng không.
+        Trước khi viết, ngó qua [danh sách việc còn thiếu](https://github.com/tarasami/StandUp/blob/master/README.md#còn-thiếu-gì) xem đã có chưa,
+        và [triết lý dự án](https://github.com/tarasami/StandUp/blob/master/CONTRIBUTING.md#triết-lý) xem có hợp hướng không.
 
         Tóm tắt ba điều: **không phiền là tính năng số một**; **nhẹ và sạch** (0 phụ thuộc
         runtime, không mã kết nối mạng); **logic nghiệp vụ nằm trong engine thuần**.

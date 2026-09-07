@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/tarasami/StandUp/security/advisories/new
     about: Xin báo riêng qua Security Advisory, đừng mở issue công khai.
   - name: Cách khắc phục sự cố thường gặp
-    url: https://github.com/tarasami/StandUp#khắc-phục-sự-cố
+    url: https://github.com/tarasami/StandUp#khi-trục-trặc
     about: Không thấy icon tray, app không nhắc, autostart không chạy… xem trước ở đây.
