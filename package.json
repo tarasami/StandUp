@@ -9,7 +9,7 @@
     "icon": "node tools/make-icon.js build/icon.ico",
     "dist": "electron-builder --win --publish never"
   },
-  "author": "tarasami",
+  "author": "tarasami <thaisami.hust@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/tarasami/StandUp#readme",
   "repository": {

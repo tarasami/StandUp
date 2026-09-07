@@ -359,6 +359,7 @@ Rất hoan nghênh. Xem [CONTRIBUTING.md](CONTRIBUTING.md) để biết cách d�
 ước mã nguồn và những gì cần có trong một pull request.
 
 Lỗi và đề xuất: [mở issue](https://github.com/tarasami/StandUp/issues).
+Liên hệ trực tiếp: <thaisami.hust@gmail.com>.
 Lỗi bảo mật: xem [SECURITY.md](SECURITY.md).
 
 ---

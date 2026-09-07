@@ -28,7 +28,7 @@ tắt công tắc trong Cài đặt thì gỡ khoá thứ hai.
 
 Nếu bạn tìm thấy lỗ hổng, xin **đừng mở issue công khai**. Dùng
 [GitHub Security Advisory](https://github.com/tarasami/StandUp/security/advisories/new)
-để báo riêng. Tôi sẽ phản hồi sớm nhất có thể.
+để báo riêng, hoặc gửi email tới <thaisami.hust@gmail.com>. Tôi sẽ phản hồi sớm nhất có thể.
 
 Với lỗi thường (không phải bảo mật), mở [issue](https://github.com/tarasami/StandUp/issues) như bình thường.
 
