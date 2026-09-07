@@ -1,7 +1,7 @@
 # Nhật ký thay đổi
 
 Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.1.0/).
-Dự án chưa phát hành bản chính thức nào — xem [lộ trình trong README](README.md#lộ-trình).
+Dự án chưa phát hành bản chính thức nào — xem [phần Còn thiếu gì trong README](README.md#còn-thiếu-gì).
 
 ---
 

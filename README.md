@@ -1,53 +1,44 @@
 # 🧍 StandUp
 
-**Nhắc bạn đứng dậy vận động khi ngồi máy quá lâu — và biết im lặng khi bạn đang bận.**
+App nhắc bạn đứng dậy khi ngồi máy quá lâu, và biết im khi bạn đang bận.
 
-[![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows%2010%2F11-0078d4)](#cài-đặt)
+[![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows%2010%2F11-0078d4)](#cài-thế-nào)
 [![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-MIT-green)](LICENSE)
 [![Unit test](https://github.com/tarasami/StandUp/actions/workflows/test.yml/badge.svg)](https://github.com/tarasami/StandUp/actions/workflows/test.yml)
-[![Phụ thuộc](https://img.shields.io/badge/ph%E1%BB%A5%20thu%E1%BB%99c%20runtime-0-blue)](#nhẹ--sạch)
+[![Phụ thuộc](https://img.shields.io/badge/ph%E1%BB%A5%20thu%E1%BB%99c%20runtime-0-blue)](#không-có-gì-chạy-ra-internet)
 
 <p align="center">
   <img src="docs/images/break-overlay.png" alt="Màn nghỉ che màn hình với động tác giãn cơ 'Vươn người'" width="780">
 </p>
 
-Ai cũng **biết** cần đứng dậy mỗi tiếng. Vấn đề là lúc đang tập trung thì **quên**. Phần khó
-của một app như thế này không phải cái đồng hồ đếm giờ — mà là nhắc sao cho **không phiền
-đến mức bị gỡ**. Mọi quyết định trong StandUp xoay quanh điều đó: *nhắc đúng lúc, đúng cách,
-và biết im lặng khi cần.*
+Ai cũng biết ngồi liền 3 tiếng là hại lưng. Vấn đề là lúc đang tập trung thì không ai nhớ
+cả. Đây không phải bài toán kiến thức, mà là bài toán thói quen.
 
----
+Mình đã thử vài app cùng loại và gỡ hết. Không phải vì chúng chạy sai — mà vì chúng nhảy
+ra giữa lúc họp, giữa lúc xem phim, hoặc nhắc ngay khi mình vừa đi ăn về ngồi xuống. Cái
+khó của loại app này không nằm ở cái đồng hồ đếm ngược. Nó nằm ở chỗ nhắc sao cho đừng
+phiền đến mức bị gỡ.
 
-## Mục lục
+Nên StandUp được viết quanh đúng một nguyên tắc: **nhắc đúng lúc, và biết im khi cần** —
+nhưng không bao giờ im vĩnh viễn.
 
-- [Tính năng](#tính-năng)
-- [Cài đặt](#cài-đặt)
-- [Dùng thế nào](#dùng-thế-nào)
-- [Bảng cài đặt](#bảng-cài-đặt)
-- [Dữ liệu của bạn nằm ở đâu](#dữ-liệu-của-bạn-nằm-ở-đâu)
-- [Khắc phục sự cố](#khắc-phục-sự-cố)
-- [Phát triển](#phát-triển)
-- [Lộ trình](#lộ-trình)
-- [Đóng góp](#đóng-góp)
-- [English summary](#english-summary)
+## Nói trước cho khỏi mất thời gian
 
----
+Mấy điều này nên biết trước khi bạn cuộn tiếp:
 
-## Tính năng
+- **Chỉ chạy Windows 10/11.** Chưa có bản macOS hay Linux, và cũng chưa có kế hoạch.
+- **Giao diện chỉ có tiếng Việt.** Tiếng Anh nằm trong danh sách việc phải làm, chưa làm.
+- **Chưa có file cài sẵn.** Dự án đang ở đoạn cuối trước 1.0, bạn phải tự build. Nếu bạn
+  không quen dòng lệnh thì cứ bấm Watch rồi quay lại sau, đừng mất công.
+- **Viết bằng Electron**, nên nó không nhẹ như một app native. Mình chọn Electron vì máy
+  chưa có Rust toolchain; chuyển sang Tauri là chuyện tính sau.
 
-### Nhắc đúng lúc
+Nếu mấy điều trên không làm bạn nản thì đọc tiếp.
 
-- **Chu kỳ ngồi cấu hình được** (mặc định 45 phút), đếm bằng **timestamp tuyệt đối** nên
-  sống sót qua sleep/hibernate — máy ngủ 3 tiếng rồi mở lại thì app biết là đã 3 tiếng.
-- **Tự nhận biết bạn rời máy**: không chạm chuột/phím quá N phút (mặc định 5) là app coi
-  như bạn đã nghỉ và tự bắt đầu chu kỳ mới. Đi ăn trưa về không bị nhắc ngay.
-- **Nhường toàn màn hình**: đang xem phim, chơi game full-screen hay trình chiếu thì hoãn
-  lời nhắc tới khi bạn xong. App **hỏi thẳng Windows** (`SHQueryUserNotificationState`)
-  chứ không tự đoán, và *fail-open* — tra cứu lỗi thì vẫn nhắc, không bao giờ im vĩnh viễn.
-- **Không kẹt**: lời nhắc bị phớt lờ quá 3 phút sẽ tự đóng và hoãn 5 phút, thay vì treo
-  trên màn hình rồi im luôn.
+## Nó làm được gì
 
-### Nhắc đúng cách
+Cứ 45 phút (bạn tự đổi), một cửa sổ nhỏ hiện ra ở góc màn hình với ba lựa chọn: nghỉ ngay,
+hoãn 5 phút, hoặc bỏ qua.
 
 <table>
 <tr>
@@ -56,60 +47,71 @@ và biết im lặng khi cần.*
 </td>
 <td valign="top">
 
-**Cửa sổ nhắc nổi** ở góc màn hình (hoặc giữa, tuỳ bạn chọn), **không cướp focus** nên
-không phá lúc bạn đang gõ. Ba lựa chọn rõ ràng: **Nghỉ ngay** · **Hoãn 5'** · **Bỏ qua**.
+Cửa sổ này **không cướp focus**. Bạn đang gõ dở thì cứ gõ tiếp, không mất ký tự nào.
 
-Đây là kênh nhắc **duy nhất** lúc tới giờ — cố tình không dùng toast Windows, vì toast dễ
-bị hệ thống nuốt ngầm mà người dùng không hay biết.
+Nó cũng cố tình không dùng toast Windows. Lúc làm thì phát hiện toast có thể vào Action
+Center mà banner không hiện — người dùng chẳng biết gì. Một cái nhắc có thể bị hệ thống
+nuốt im lặng thì không đáng làm kênh chính.
 
-**12 câu nhắc xoay vòng** (và 4 câu báo hết giờ nghỉ), dùng hết bộ mới lặp lại — đọc mãi
-một câu thì thành tiếng ồn.
+Lời nhắc xoay vòng 12 câu khác nhau, dùng hết mới lặp. Đọc mãi một câu thì nó thành tiếng
+ồn, mà tiếng ồn thì bị lờ đi.
 
 </td>
 </tr>
 </table>
 
-### Giờ nghỉ có hướng dẫn
+Bấm nghỉ thì màn hình bị che lại, kèm một động tác giãn cơ có hình chuyển động: xoay vai,
+duỗi cổ, vươn người, gập lưng, giãn cổ tay, nghỉ mắt, đi vài bước, nhón chân. Tám bài xoay
+vòng. Bấm `Esc` hoặc nút *Làm việc tiếp* là về ngay — che kín màn hình thì bắt buộc phải
+luôn có lối ra.
 
-**Màn nghỉ che màn hình** kèm **một động tác giãn cơ có hình động** — 8 động tác xoay vòng
-(xoay vai, duỗi cổ, vươn người, gập lưng, giãn cổ tay, nghỉ mắt, đi vài bước, nhón chân).
+Hình vẽ hết bằng SVG/CSS ngay trong code, không có file ảnh hay video nào. Mỗi hình vài KB.
+Bật "giảm chuyển động" trong Windows thì hình đứng yên.
 
-Toàn bộ hình được **vẽ bằng SVG/CSS ngay trong mã**, không một tệp ảnh hay video nào: mỗi
-hình vài KB, chạy offline, sửa và dịch dễ. Bấm **Esc** hoặc nút **Làm việc tiếp** là quay
-lại ngay — màn che kín màn hình thì luôn phải có lối thoát. Tôn trọng
-`prefers-reduced-motion`: bật giảm chuyển động trong Windows thì hình đứng yên.
+Không thích bị che màn hình thì tắt công tắc đi, giờ nghỉ quay về đếm ngược ở cửa sổ nhỏ.
 
-Không thích bị che màn hình? Tắt công tắc, giờ nghỉ quay về đếm ngược ở cửa sổ nhỏ.
+### Chỗ khác biệt thật sự: nó biết lúc nào nên im
 
-### Nhẹ & sạch
+Đây là phần mình đổ nhiều công nhất, và cũng là lý do mấy app kia bị mình gỡ.
 
-- **0 phụ thuộc runtime** — `dependencies` rỗng; chỉ Electron và electron-builder ở khâu
-  phát triển. Không thư viện UI, không framework, không tệp ảnh/âm thanh đi kèm.
-- **Không có một dòng mã kết nối mạng.** Không tài khoản, không đồng bộ, không đo đạc từ
-  xa, không quảng cáo. Chi tiết: [SECURITY.md](SECURITY.md).
-- Icon và âm báo đều **sinh bằng code** (`tools/make-icon.js`, Web Audio 2 nốt sine).
+**Bạn rời máy thì nó biết.** Không chạm chuột phím quá 5 phút là nó tự tính bạn đã nghỉ
+rồi, chu kỳ bắt đầu lại từ đầu. Đi ăn trưa về không bị nhắc ngay.
 
-### Những thứ nhỏ nhưng đáng kể
+**Bạn đang toàn màn hình thì nó chờ.** Xem phim, chơi game, trình chiếu — nó hoãn tới khi
+bạn xong. Chỗ này nó không đoán mò mà hỏi thẳng Windows bằng `SHQueryUserNotificationState`.
+Nhưng nếu việc hỏi bị lỗi thì nó **vẫn nhắc**: thà nhắc nhầm lúc bạn đang bận, còn hơn tự
+nhiên câm luôn mà bạn không hề hay biết.
 
-- **Tray icon hiện số phút còn lại ngay trên biểu tượng**, đổi màu theo trạng thái
-  (xanh = đang làm việc, vàng = nhắc/nghỉ, xám = rời máy/tạm dừng).
-- **Onboarding 30 giây** cho lần chạy đầu: chọn một con số là xong.
-- **Nhật ký sự kiện luôn bật** — khi có trục trặc thì có cái mà soi, thay vì hộp thoại lỗi
-  nhảy ra phá ngang một app chạy nền.
+**Nó không kẹt.** Nếu bạn bỏ mặc cửa sổ nhắc trên màn hình rồi đi mất, sau 3 phút nó tự
+đóng và hoãn lại. Không có chuyện treo một cửa sổ chết rồi im mãi.
 
----
+**Đếm bằng mốc thời gian tuyệt đối**, nên máy ngủ 3 tiếng rồi mở lại thì nó biết là đã 3
+tiếng, chứ không phải mới trôi vài giây.
 
-## Cài đặt
+### Không có gì chạy ra Internet
 
-**Yêu cầu:** Windows 10 hoặc 11, 64-bit.
+Trong code không có một dòng nào kết nối mạng. Không phải kiểu "chúng tôi cam kết không gửi
+dữ liệu" — mà là khả năng gửi không tồn tại. Bạn grep là thấy.
 
-> **Chưa có bản phát hành sẵn.** Dự án đang ở giai đoạn trước 1.0 chính thức (còn thiếu
-> thử nghiệm trên máy sạch và beta người dùng thật — xem [Lộ trình](#lộ-trình)). Hiện tại
-> bạn tự build lấy; khi 1.0 sẵn sàng, bản cài sẽ được đăng ở mục **Releases**.
+Mục `dependencies` cũng rỗng, chỉ Electron với electron-builder ở khâu phát triển. Không
+thư viện UI, không framework, không file ảnh hay âm thanh đi kèm. Icon vẽ bằng code, tiếng
+báo tổng hợp bằng Web Audio đúng hai nốt sine.
 
-### Tự build bản cài đặt
+Không tài khoản, không đồng bộ, không đo đạc. Chi tiết: [SECURITY.md](SECURITY.md).
 
-Cần [Node.js](https://nodejs.org) ≥ 20.
+### Mấy thứ nhỏ
+
+Tray icon hiện luôn số phút còn lại trên biểu tượng, đổi màu theo trạng thái: xanh là đang
+làm việc, vàng là đang nhắc hoặc đang nghỉ, xám là bạn đi vắng hoặc đã tạm dừng.
+
+Nhật ký sự kiện luôn bật. App chạy nền mà hiện hộp thoại lỗi giữa lúc bạn đang làm thì còn
+tệ hơn chính cái lỗi — nên nó ghi vào file, lúc cần thì mở ra soi.
+
+## Cài thế nào
+
+Cần Windows 10 hoặc 11 bản 64-bit, và [Node.js](https://nodejs.org) từ phiên bản 20 trở lên.
+
+Chưa có bản cài sẵn trên Releases, nên tự build:
 
 ```bash
 git clone https://github.com/tarasami/StandUp.git
@@ -118,31 +120,28 @@ npm install
 npm run dist
 ```
 
-Kết quả: `dist/StandUp-Setup-1.0.0.exe` — trình cài NSIS, cho chọn thư mục cài, tạo
-shortcut Desktop + Start Menu. Cài cho **người dùng hiện tại**, không cần quyền quản trị.
+Xong sẽ có `dist/StandUp-Setup-1.0.0.exe`. Trình cài cho chọn thư mục, tạo shortcut Desktop
+và Start Menu, cài cho người dùng hiện tại nên không cần quyền admin.
 
-Gỡ cài đặt **không** xoá cài đặt cá nhân trong `%APPDATA%\standup` — cài lại là thấy
-nguyên trạng.
+Gỡ cài đặt không xoá cài đặt cá nhân trong `%APPDATA%\standup`. Cài lại là thấy nguyên
+trạng.
 
-### Chạy thẳng từ mã nguồn (không cần build)
+Chỉ muốn chạy thử, không cần cài:
 
 ```bash
-npm install
 npm start
 ```
 
-### Lần chạy đầu
+### Lần đầu chạy
 
 <p align="center">
   <img src="docs/images/onboarding.png" alt="Màn hình chào mừng: chọn khoảng nhắc, bật/tắt khởi động cùng Windows và âm báo" width="440">
 </p>
 
-Chọn một con số, gạt hai công tắc, bấm **Bắt đầu** — app thu vào khay hệ thống và bắt đầu
-đếm. Dưới 30 giây, không tài khoản, không hỏi gì thêm.
+Chọn một con số, gạt hai công tắc, bấm Bắt đầu. App thu vào khay hệ thống và chạy luôn.
+Không tài khoản, không hỏi gì thêm.
 
----
-
-## Dùng thế nào
+## Dùng hằng ngày
 
 <table>
 <tr>
@@ -151,115 +150,99 @@ Chọn một con số, gạt hai công tắc, bấm **Bắt đầu** — app thu
 </td>
 <td valign="top">
 
-**Một chu kỳ diễn ra thế này:**
+Một vòng chạy như sau: bạn làm việc, tray icon đếm ngược. Tới giờ thì cửa sổ nhắc hiện ra
+kèm tiếng báo nhẹ. Bạn chọn nghỉ, hoãn, hay bỏ qua. Nếu nghỉ thì màn nghỉ hiện động tác
+giãn cơ và đếm ngược. Hết giờ nghỉ, vòng mới bắt đầu.
 
-1. Bạn làm việc, tray icon đếm ngược.
-2. Tới giờ → **cửa sổ nhắc** hiện ra góc màn hình kèm âm báo nhẹ.
-3. Bạn chọn **Nghỉ ngay** (vào giờ nghỉ), **Hoãn 5'**, hoặc **Bỏ qua** (bắt đầu lại chu kỳ).
-4. Trong giờ nghỉ, **màn nghỉ** hiện một động tác giãn cơ + đếm ngược.
-5. Hết giờ nghỉ → tự động bắt đầu chu kỳ mới.
-
-Đóng cửa sổ chính = **thu về khay hệ thống**, app vẫn chạy nền. Muốn thoát hẳn thì dùng
-menu tray.
+Đóng cửa sổ chính chỉ là thu về khay, app vẫn chạy nền. Muốn tắt hẳn thì dùng menu tray.
 
 </td>
 </tr>
 </table>
 
-### Menu khay hệ thống
-
 Chuột phải vào tray icon:
 
-| Mục | Tác dụng |
+| Mục | Làm gì |
 |---|---|
-| **Mở StandUp** | Hiện cửa sổ chính |
-| **Nghỉ ngay** | Vào giờ nghỉ luôn, không đợi hết chu kỳ |
-| **Thử nhắc nhở** | Bắn thử một lời nhắc để xem nó trông thế nào |
-| **Tạm dừng 1 giờ** | Im lặng 1 tiếng rồi tự chạy lại |
-| **Tạm dừng (đến khi bật lại)** | Im lặng cho tới khi bạn bấm *Tiếp tục* |
-| **Tiếp tục** | Chạy lại sau khi tạm dừng |
-| **Mở thư mục nhật ký** | Mở `%APPDATA%\standup` trong Explorer |
-| **Thoát** | Tắt hẳn app |
+| Mở StandUp | Hiện cửa sổ chính |
+| Nghỉ ngay | Vào giờ nghỉ luôn, không đợi hết chu kỳ |
+| Thử nhắc nhở | Bắn thử một lời nhắc để xem nó trông thế nào |
+| Tạm dừng 1 giờ | Im 1 tiếng rồi tự chạy lại |
+| Tạm dừng (đến khi bật lại) | Im cho tới khi bạn bấm *Tiếp tục* |
+| Tiếp tục | Chạy lại sau khi tạm dừng |
+| Mở thư mục nhật ký | Mở `%APPDATA%\standup` trong Explorer |
+| Thoát | Tắt hẳn |
 
-### Phím tắt
+Phím tắt duy nhất: `Esc` ở màn nghỉ để quay lại làm việc.
 
-| Phím | Ở đâu | Tác dụng |
-|---|---|---|
-| `Esc` | Màn nghỉ | Quay lại làm việc ngay |
+## Các ô cài đặt
 
----
-
-## Bảng cài đặt
-
-Bấm nút **⚙** ở cửa sổ chính để xổ phần cài đặt.
+Bấm nút ⚙ ở cửa sổ chính là phần cài đặt xổ ra.
 
 <p align="center">
   <img src="docs/images/settings.png" alt="Bảng cài đặt của StandUp" width="420">
 </p>
 
-| Cài đặt | Mặc định | Dải hợp lệ | Ý nghĩa |
+| Ô | Mặc định | Nhập được | Nghĩa là gì |
 |---|---|---|---|
 | Nhắc sau mỗi (phút) | 45 | 5–240 | Chu kỳ ngồi làm việc |
-| Thời gian nghỉ (phút) | 5 | 1–60 | Độ dài giờ nghỉ |
-| Coi là rời máy sau (phút) | 5 | 1–60 | Không chạm chuột/phím quá lâu → coi như đã nghỉ |
-| Vị trí cửa sổ nhắc | Dưới-phải | dưới-phải / giữa màn hình | Chỗ cửa sổ nhắc hiện ra |
-| Phát âm báo nhẹ khi nhắc | Bật | — | Hai nốt sine, không cần tệp nhạc |
-| Khởi động cùng Windows | Bật | — | Chỉ có tác dụng ở bản đã cài, không phải bản chạy từ mã nguồn |
-| Tạm ẩn lời nhắc khi toàn màn hình | Bật | — | Hoãn nhắc khi xem phim / chơi game / trình chiếu |
+| Thời gian nghỉ (phút) | 5 | 1–60 | Giờ nghỉ dài bao lâu |
+| Coi là rời máy sau (phút) | 5 | 1–60 | Không chạm chuột phím quá lâu thì coi như đã nghỉ |
+| Vị trí cửa sổ nhắc | Dưới-phải | dưới-phải / giữa | Cửa sổ nhắc hiện ở đâu |
+| Phát âm báo nhẹ khi nhắc | Bật | — | Hai nốt sine, không cần file nhạc |
+| Khởi động cùng Windows | Bật | — | Chỉ ăn ở bản đã cài, không phải bản chạy từ mã nguồn |
+| Tạm ẩn lời nhắc khi toàn màn hình | Bật | — | Hoãn nhắc lúc xem phim, chơi game, trình chiếu |
 | Giờ nghỉ che màn hình kèm động tác | Bật | — | Tắt thì giờ nghỉ chỉ đếm ngược ở cửa sổ nhỏ |
 
-Giá trị nhập ngoài dải sẽ được **kẹp về biên** (gõ 999 phút thì lưu thành 240), giá trị
-hỏng rơi về mặc định — file cài đặt bị sửa tay hay hỏng cũng không làm app chết.
+Gõ số ngoài dải thì nó kẹp về biên, ví dụ 999 phút lưu thành 240. File cài đặt bị sửa tay
+hỏng hay dính BOM thì app dùng mặc định chứ không chết.
 
----
+## Dữ liệu của bạn nằm đâu
 
-## Dữ liệu của bạn nằm ở đâu
-
-| Đường dẫn | Nội dung |
+| Đường dẫn | Có gì trong đó |
 |---|---|
 | `%APPDATA%\standup\settings.json` | Cài đặt của bạn |
-| `%APPDATA%\standup\standup.log` | Nhật ký sự kiện (tự xoay vòng ~1MB → `standup.log.1`) |
-| `%LOCALAPPDATA%\Programs\StandUp\` | Nơi cài ứng dụng |
+| `%APPDATA%\standup\standup.log` | Nhật ký, tự xoay vòng khi quá ~1MB sang `standup.log.1` |
+| `%LOCALAPPDATA%\Programs\StandUp\` | Chỗ cài app |
 
-Nhật ký ghi: khởi động, đổi cài đặt, chuyển trạng thái, ngủ/thức máy, thao tác của bạn và
-mọi sự cố ngoài dự tính. **Không** ghi tên cửa sổ, tiêu đề ứng dụng hay nội dung bạn gõ.
+Nhật ký ghi: khởi động, đổi cài đặt, chuyển trạng thái, máy ngủ/thức, bạn bấm gì, và mọi sự
+cố ngoài dự tính. Nó **không** ghi tên cửa sổ, tên ứng dụng bạn đang mở, hay nội dung bạn gõ.
 
----
-
-## Khắc phục sự cố
+## Khi trục trặc
 
 <details>
 <summary><b>Không thấy icon ở khay hệ thống</b></summary>
 
-Windows 10 **mặc định giấu icon tray mới** vào vùng tràn sau nút `^`. Bấm `^`, kéo icon
-StandUp ra thanh taskbar để nó luôn hiện. (Onboarding cũng có hướng dẫn này.)
+Windows 10 mặc định giấu icon tray mới vào vùng tràn, sau nút `^`. Bấm `^` rồi kéo icon
+StandUp ra thanh taskbar cho nó ở luôn ngoài. Màn hình onboarding cũng có nhắc chuyện này.
 </details>
 
 <details>
-<summary><b>Bật "khởi động cùng Windows" mà không thấy chạy</b></summary>
+<summary><b>Bật "khởi động cùng Windows" mà chẳng thấy chạy</b></summary>
 
-Công tắc này **chỉ có tác dụng ở bản đã cài**. Bản chạy từ mã nguồn (`npm start`) sẽ bị bỏ
-qua có chủ đích — nếu không, mục khởi động sẽ trỏ vào `electron.exe` trong `node_modules`,
-xoá thư mục đó là để lại một mục khởi động chết trong registry.
+Công tắc này chỉ ăn ở bản đã cài. Bản chạy từ mã nguồn (`npm start`) bị bỏ qua có chủ ý:
+nếu không, mục khởi động sẽ trỏ vào `electron.exe` nằm trong `node_modules`, mà bạn xoá thư
+mục đó là để lại một mục khởi động chết trong registry.
 </details>
 
 <details>
-<summary><b>App không nhắc gì cả</b></summary>
+<summary><b>App chẳng nhắc gì cả</b></summary>
 
-Kiểm tra theo thứ tự:
+Kiểm theo thứ tự này:
 
-1. Tray icon có đang màu xám không? Xám = đang tạm dừng hoặc app nghĩ bạn đã rời máy.
-2. Có đang xem phim/chơi game full-screen không? Công tắc *Tạm ẩn lời nhắc khi toàn màn
-   hình* đang bật sẽ hoãn nhắc — tắt nó nếu bạn muốn được nhắc kể cả lúc đang cày.
-3. Mở `%APPDATA%\standup\standup.log` (menu tray → *Mở thư mục nhật ký*) và xem dòng cuối.
-   Nhật ký ghi rõ lý do mỗi lần hoãn.
+1. Tray icon có đang xám không? Xám nghĩa là đang tạm dừng, hoặc app nghĩ bạn đã rời máy.
+2. Có đang xem phim hay chơi game toàn màn hình không? Công tắc *Tạm ẩn lời nhắc khi toàn
+   màn hình* đang bật thì nó sẽ hoãn. Tắt đi nếu bạn muốn bị nhắc kể cả lúc đang cày.
+3. Mở `%APPDATA%\standup\standup.log` (menu tray có sẵn lối tắt) rồi xem dòng cuối. Mỗi lần
+   hoãn nó đều ghi rõ lý do.
 </details>
 
 <details>
-<summary><b>Cài đặt của bản chạy từ mã nguồn lẫn với bản đã cài</b></summary>
+<summary><b>Cài đặt của bản mã nguồn lẫn với bản đã cài</b></summary>
 
-Đúng vậy — cả hai dùng chung `%APPDATA%\standup`, nên cũng chung khoá chống chạy trùng:
-mở bản mã nguồn trong khi bản đã cài đang chạy thì bản mới tự thoát. Muốn chạy tách biệt:
+Đúng vậy, cả hai dùng chung `%APPDATA%\standup`, nên cũng chung khoá chống chạy trùng: mở
+bản mã nguồn trong lúc bản đã cài đang chạy thì bản mới tự thoát ngay. Chỗ này từng làm
+mình tưởng code sửa rồi mà không ăn. Muốn chạy tách biệt:
 
 ```bash
 npx electron . --user-data-dir=.dev-profile
@@ -267,128 +250,121 @@ npx electron . --user-data-dir=.dev-profile
 </details>
 
 <details>
-<summary><b>Toast báo hết giờ nghỉ hiện tên lạ thay vì "StandUp"</b></summary>
+<summary><b>Toast báo hết giờ nghỉ hiện tên lạ chứ không phải "StandUp"</b></summary>
 
-Windows cache danh tính ứng dụng trong database thông báo. Nếu máy bạn từng nhận toast từ
-app này *trước khi* nó đăng ký AUMID, tên cũ có thể còn kẹt lại. Máy cài mới không gặp.
-Chi tiết cơ chế: [docs/technical-notes.md](docs/technical-notes.md#toast-và-aumid).
+Windows cache danh tính ứng dụng trong database thông báo. Máy nào từng nhận toast từ app
+này *trước khi* nó đăng ký AUMID thì tên cũ có thể còn kẹt lại. Máy cài mới không gặp.
+Cơ chế đầy đủ: [docs/technical-notes.md](docs/technical-notes.md#toast-và-aumid).
 </details>
 
----
-
-## Phát triển
+## Nghịch code
 
 ```bash
-npm install     # cài phụ thuộc (chỉ Electron + electron-builder)
+npm install     # chỉ Electron + electron-builder
 npm start       # chạy app từ mã nguồn
-npm test        # 242 unit test, chạy bằng Node thuần — không cần Electron
+npm test        # 242 unit test, Node thuần, chưa tới 1 giây
 npm run dist    # đóng gói installer NSIS vào dist/
 npm run icon    # vẽ lại icon.ico (7 kích thước 16→256px) bằng code
 ```
 
-### Cấu trúc mã
+Cấu trúc:
 
 ```
 electron/
-  engine.js       State machine THUẦN: mọi logic nghiệp vụ, bộ câu nhắc, 8 động tác
-                  giãn cơ, clampSettings. Không import Electron → unit-test được.
-  main-utils.js   Hàm thuần tách khỏi main: parse cài đặt, tính kích thước/vị trí cửa
+  engine.js       State machine THUẦN: toàn bộ logic, bộ câu nhắc, 8 động tác giãn cơ,
+                  clampSettings. Không import Electron, nên unit-test được.
+  main-utils.js   Hàm thuần tách khỏi main: parse cài đặt, tính kích thước và vị trí cửa
                   sổ, định dạng & xoay nhật ký, đọc trạng thái thông báo của Windows.
   main.js         Main process: tray, cửa sổ, powerMonitor, vòng tick 1 giây, nhật ký.
-                  Chỉ THỰC THI effect do engine trả về.
-  preload.js      contextBridge — cầu IPC an toàn (contextIsolation bật, nodeIntegration tắt).
+                  Chỉ THỰC THI effect mà engine trả về.
+  preload.js      contextBridge — cầu IPC (contextIsolation bật, nodeIntegration tắt).
 src/
   index.html      Cửa sổ chính: trạng thái + cài đặt (gọn, xổ ra khi bấm ⚙)
   onboarding.*    Màn hình lần chạy đầu
   reminder.*      Cửa sổ nhắc nổi (frameless, always-on-top, không cướp focus)
   overlay.*       Màn nghỉ + hình động giãn cơ (SVG/CSS)
-  styles.css      Toàn bộ CSS, gồm các @keyframes của 8 động tác
+  styles.css      Toàn bộ CSS, gồm @keyframes của 8 động tác
 tools/
   make-icon.js    Sinh icon.ico nhiều kích thước, không dùng thư viện ngoài
 test/
-  engine.test.js       186 kiểm tra — engine thuần
-  main-utils.test.js    56 kiểm tra — hàm thuần tách khỏi main
+  engine.test.js       186 kiểm tra cho engine
+  main-utils.test.js    56 kiểm tra cho hàm thuần tách khỏi main
 docs/
-  architecture.md         Kiến trúc: state machine, effect, IPC, vòng đời cửa sổ
-  technical-notes.md  Những cái bẫy Windows/Electron đã gặp và cách xử lý
-  testing.md          Chiến lược kiểm thử, gồm cách nghiệm trên app chạy thật
+  architecture.md      Kiến trúc: state machine, effect, IPC, vòng đời cửa sổ
+  technical-notes.md   Những cái bẫy Windows/Electron đã gặp, kèm lý do
+  testing.md           Chiến lược test, gồm cách nghiệm trên app chạy thật
 ```
 
-### Nguyên tắc kiến trúc
+Một quyết định định hình cả dự án: **toàn bộ logic nằm trong `engine.js`, và file đó không
+được `require('electron')`**. Nó nhận `(now, idleSecs, canNotify)` rồi trả về danh sách
+effect — `openReminder`, `openOverlay`, `sound`… — còn tầng Electron chỉ việc thi hành.
 
-**Toàn bộ logic nghiệp vụ nằm trong `engine.js`** — một state machine thuần không phụ thuộc
-Electron, nhận `(now, idleSecs, canNotify)` và trả về danh sách **effect** (`openReminder`,
-`openOverlay`, `notify`, `sound`…). Tầng Electron chỉ việc thực thi effect.
+Nghe hơi cứng nhắc, nhưng đổi lại được ba thứ. Test chạy bằng Node thuần và **mô phỏng được
+thời gian**: giả lập 8 tiếng làm việc trong vài mili giây, nên mấy ca như máy ngủ dậy hay
+đồng hồ bị chỉnh lùi mới test nổi. Muốn đổi vỏ sang Tauri thì chỉ port phần thi hành effect.
+Và thực tế thì **mọi lỗi thật của dự án này đều nằm ở tầng Electron, chưa lỗi nào ở
+engine** — nên nguyên tắc là hàm nào tách khỏi Electron được thì tách sang `main-utils.js`
+để có test.
 
-Nhờ vậy:
+Chi tiết: [docs/architecture.md](docs/architecture.md). Còn nếu bạn cũng đang viết app nền
+cho Windows thì [docs/technical-notes.md](docs/technical-notes.md) là chỗ mình ghi lại từng
+cái bẫy đã dẫm phải — chắc tiết kiệm cho bạn được vài buổi tối.
 
-- Logic test được bằng **mô phỏng thời gian** — chạy giả lập 3 tiếng trong vài mili giây.
-- Đổi vỏ (Electron → Tauri) chỉ cần port phần thực thi effect, không đụng logic.
-- Mọi lỗi thật gặp trong dự án này đều nằm ở **tầng Electron**, không phải engine — nên
-  hàm nào tách ra khỏi Electron được thì chuyển sang `main-utils.js` để test.
+## Còn thiếu gì
 
-Đọc sâu hơn: [docs/architecture.md](docs/architecture.md).
+Kế hoạch sản phẩm đầy đủ nằm trong [PLAN.md](PLAN.md). Tóm tắt tình hình:
 
----
+Đủ 8/8 hạng mục MVP, cộng thêm mấy phần gia cố sau đó — nhật ký sự cố, tự hoãn lời nhắc bị
+phớt lờ, nhường toàn màn hình, màn nghỉ kèm hình giãn cơ.
 
-## Lộ trình
+Trước khi dám gọi là 1.0 thì còn hai việc: thử trên một máy sạch chưa từng cài Node hay
+Electron, và cho 5–10 người dùng thật xài rồi nghe họ chê.
 
-Kế hoạch sản phẩm đầy đủ (bối cảnh, phân tích cạnh tranh, personas): [PLAN.md](PLAN.md).
+Danh sách muốn làm sau đó:
 
-**Đã xong** — đủ 8/8 hạng mục MVP, cộng thêm phần gia cố sau MVP (nhật ký sự cố, tự hoãn
-lời nhắc bị phớt lờ, nhường toàn màn hình, màn nghỉ + hình giãn cơ).
+- Lịch làm việc theo khung giờ và ngày trong tuần
+- Thống kê ngày/tuần, tỉ lệ tuân thủ
+- Nhận biết gọi video ở cửa sổ thường — Zoom hay Meet không chạy toàn màn hình thì Windows
+  không báo bận, nên hiện giờ chịu
+- Giao diện tiếng Anh
+- Cân nhắc chuyển vỏ sang Tauri
 
-**Còn lại trước 1.0:**
+Chỗ mình biết là còn mỏng: chưa test trên máy nhiều màn hình, và chưa test khi đổi tỉ lệ DPI
+giữa chừng. Ai có màn hình phụ mà thử giúp thì quý lắm.
 
-- [ ] Thử trên máy sạch chưa từng cài Node/Electron
-- [ ] Beta 5–10 người dùng thật
+## Góp ý
 
-**Sau 1.0:**
+Rất hoan nghênh. [CONTRIBUTING.md](CONTRIBUTING.md) có đủ cách dựng môi trường, quy ước
+code và checklist trước khi mở pull request.
 
-- [ ] Lịch làm việc theo khung giờ và ngày trong tuần
-- [ ] Thống kê ngày/tuần, tỉ lệ tuân thủ
-- [ ] Phát hiện gọi video ở **cửa sổ** (Zoom/Meet không full-screen — Windows không báo bận)
-- [ ] Song ngữ Việt–Anh trong giao diện
-- [ ] Cân nhắc chuyển vỏ sang Tauri cho nhẹ hơn
-
----
-
-## Đóng góp
-
-Rất hoan nghênh. Xem [CONTRIBUTING.md](CONTRIBUTING.md) để biết cách dựng môi trường, quy
-ước mã nguồn và những gì cần có trong một pull request.
-
-Lỗi và đề xuất: [mở issue](https://github.com/tarasami/StandUp/issues).
-Liên hệ trực tiếp: <thaisami.hust@gmail.com>.
-Lỗi bảo mật: xem [SECURITY.md](SECURITY.md).
-
----
+Lỗi và đề xuất thì [mở issue](https://github.com/tarasami/StandUp/issues). Muốn nói riêng
+thì email <thaisami.hust@gmail.com>. Lỗi bảo mật thì đừng mở issue công khai, xem
+[SECURITY.md](SECURITY.md).
 
 ## Giấy phép
 
-[MIT](LICENSE) — dùng, sửa, phân phối thoải mái.
+[MIT](LICENSE). Dùng, sửa, mang đi đâu cũng được.
 
----
+## English
 
-## English summary
+StandUp is a Windows tray app that nags you to stand up after a configurable stretch of
+sitting — 45 minutes by default — and shuts up when you are busy.
 
-**StandUp** is a Windows tray app that reminds you to stand up and move after a
-configurable sitting period (default 45 minutes) — and stays quiet when you are busy.
+The hard part of an app like this is not the countdown. It is not being annoying enough to
+get uninstalled. So: it detects when you have left the keyboard and quietly resets the
+cycle; it asks Windows directly (`SHQueryUserNotificationState`) whether you are in a
+full-screen video, a game or a presentation, and waits — but fails open, so a broken lookup
+can never silence it forever. The reminder is a small floating window that never steals
+focus, deliberately not a Windows toast, because toasts can be swallowed without a trace.
 
-- **Smart quiet:** detects when you are away from the keyboard (auto-resets the cycle) and
-  when Windows is busy (full-screen video, games, presentations) via
-  `SHQueryUserNotificationState`, with fail-open behaviour.
-- **Non-intrusive reminder:** a floating window that never steals focus, with
-  *Break now* / *Snooze 5 min* / *Skip*. Deliberately not a Windows toast — those get
-  swallowed silently.
-- **Guided breaks:** a full-screen break overlay showing one of 8 stretches with an
-  animated figure, all drawn in SVG/CSS in code — no image or video assets. `Esc` exits.
-- **Light and clean:** zero runtime dependencies, no networking code at all, no accounts,
-  no telemetry. Everything stays in `%APPDATA%\standup`.
-- **Architecture:** all business logic lives in a pure, Electron-free state machine
-  (`electron/engine.js`) that returns effects; the Electron layer only executes them. That
-  is what makes 242 unit tests possible with simulated time.
+Take the break and the screen is covered by one of 8 stretches with an animated figure, all
+drawn in SVG/CSS in code, no image or video assets. `Esc` gets you out.
 
-The user interface and documentation are currently **Vietnamese only**; an English UI is on
-the roadmap. Build it yourself with `npm install && npm run dist` (Node ≥ 20, Windows x64).
-Licensed under [MIT](LICENSE).
+Zero runtime dependencies, not a single line of networking code, no accounts, no telemetry.
+Everything lives in `%APPDATA%\standup`. All business logic sits in a pure, Electron-free
+state machine that returns effects for the Electron layer to execute — which is what makes
+242 unit tests with simulated time possible.
+
+Two honest caveats: **the interface is Vietnamese only** (English is on the list, not done),
+and **there is no prebuilt installer yet** — you build it yourself with `npm install &&
+npm run dist`, on Windows, with Node 20+. Licensed [MIT](LICENSE).
